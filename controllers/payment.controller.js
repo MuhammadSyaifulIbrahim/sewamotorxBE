@@ -1,4 +1,5 @@
-const { Penyewaan } = require("../models"); // <- PENTING! Ini harus ada
+const db = require("../models");
+const Penyewaan = db.Penyewaan;
 
 exports.webhook = async (req, res) => {
   try {
