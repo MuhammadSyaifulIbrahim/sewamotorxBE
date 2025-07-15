@@ -360,34 +360,45 @@ exports.getByDateRange = async (req, res) => {
 exports.webhook = async (req, res) => {
   try {
     const payload = req.body || {};
-
-    // Ambil dari payload.data
     const data = payload.data || {};
-    const external_id = data.reference_id || payload.reference_id;
-    const status = data.status || payload.status;
 
+    // Ambil nilai external_id (reference_id)
+    const external_id =
+      payload.external_id ||
+      payload.reference_id ||
+      data.external_id ||
+      data.reference_id;
+
+    // Ambil status dari level data atau payment_method
+    const status =
+      data.status || payload.status || data.payment_method?.status || "UNKNOWN";
+
+    // Metode pembayaran (fallback)
     const metode =
-      data.payment_method ||
+      data.payment_method?.type ||
+      data.payment_method?.channel_code ||
       data.payment_channel ||
       payload.payment_method ||
-      payload.payment_channel ||
       "TIDAK DIKETAHUI";
 
-    // Log untuk debugging
-    console.log("📦 Webhook Payload:", JSON.stringify(payload, null, 2));
+    // === Log debugging
+    console.log("📦 Payload Webhook:", JSON.stringify(payload, null, 2));
     console.log("🔍 external_id:", external_id);
-    console.log("🔍 status:", status);
+    console.log("📊 status:", status);
+    console.log("💳 metode:", metode);
 
+    // Validasi awal
     if (!external_id || !status) {
       return res.status(400).json({ message: "Data webhook tidak lengkap" });
     }
 
+    // Cari penyewaan
     const penyewaan = await Penyewaan.findOne({ where: { external_id } });
     if (!penyewaan) {
       return res.status(404).json({ message: "Penyewaan tidak ditemukan" });
     }
 
-    // Kembalikan stok jika gagal
+    // Jika gagal bayar, kembalikan stok
     if (["EXPIRED", "FAILED", "CANCELLED"].includes(status.toUpperCase())) {
       const kendaraan = await Kendaraan.findByPk(penyewaan.kendaraan_id);
       if (kendaraan) {
@@ -396,7 +407,7 @@ exports.webhook = async (req, res) => {
       }
     }
 
-    // Update status
+    // Update status penyewaan
     switch (status.toUpperCase()) {
       case "PAID":
       case "SUCCEEDED":
