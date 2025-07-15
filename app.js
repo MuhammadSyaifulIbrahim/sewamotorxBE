@@ -25,7 +25,6 @@ app.use("/api/kendaraan", require("./routes/kendaraan.routes"));
 app.use("/api/penyewaan", require("./routes/penyewaan.routes"));
 app.use("/api/pelanggan", require("./routes/pelanggan.routes"));
 app.use("/api/dashboard", require("./routes/dashboard.routes"));
-app.use("/api/payment", require("./routes/payment.routes"));
 app.use("/api/users", require("./routes/user.routes"));
 app.use("/activity-logs", require("./routes/activity_log.routes"));
 app.use("/api/pengiriman", require("./routes/pengiriman.routes"));
