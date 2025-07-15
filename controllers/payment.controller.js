@@ -1,18 +1,13 @@
-const { Penyewaan } = require("../models");
-
 exports.webhook = async (req, res) => {
   try {
-    // Debug seluruh payload
-    console.log("📩 Webhook Payload:", JSON.stringify(req.body, null, 2));
-
     const payload = req.body;
+    console.log("📩 Webhook Payload:", JSON.stringify(payload, null, 2));
 
-    // Fallback ke nested jika diperlukan
     const external_id =
+      payload.reference_id ||
       payload.external_id ||
-      payload.data?.external_id ||
-      payload.data?.reference_id || // ⬅️ tambahkan ini
-      payload?.id;
+      payload.data?.reference_id ||
+      payload.data?.external_id;
 
     const status =
       payload.status || payload.data?.status || payload?.invoice?.status;
@@ -27,18 +22,15 @@ exports.webhook = async (req, res) => {
       return res.status(400).json({ message: "Data webhook tidak lengkap" });
     }
 
-    // Cari penyewaan berdasarkan external_id
     const penyewaan = await Penyewaan.findOne({ where: { external_id } });
 
     if (!penyewaan) {
-      console.warn("❗ Penyewaan tidak ditemukan:", external_id);
+      console.warn("❗ Penyewaan tidak ditemukan. external_id:", external_id);
       return res.status(404).json({ message: "Penyewaan tidak ditemukan" });
     }
 
-    // Tentukan metode bayar yang jelas
     const metodeBayar = payment_channel || payment_method || "TIDAK DIKETAHUI";
 
-    // Ubah status hanya jika valid
     switch (status.toUpperCase()) {
       case "PAID":
       case "SUCCEEDED":
@@ -57,7 +49,6 @@ exports.webhook = async (req, res) => {
     }
 
     penyewaan.metode_pembayaran = metodeBayar;
-
     await penyewaan.save();
 
     console.log("✅ Webhook sukses update:", {
