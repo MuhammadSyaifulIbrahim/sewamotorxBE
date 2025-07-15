@@ -26,65 +26,62 @@ db.sequelize = sequelize;
 // Registrasi Semua Model
 // =============================
 
-db.kendaraan = require("./kendaraan.model")(sequelize, DataTypes);
-db.user = require("./user.model")(sequelize, DataTypes);
-db.penyewaan = require("./penyewaan.model")(sequelize, DataTypes);
-db.activityLog = require("./activity_log.model")(sequelize, DataTypes);
-
-// === Tambahkan Model Pengiriman ===
-db.pengiriman = require("./pengiriman")(sequelize, DataTypes); // Pastikan nama file: pengiriman.js
+db.Kendaraan = require("./kendaraan.model")(sequelize, DataTypes);
+db.User = require("./user.model")(sequelize, DataTypes);
+db.Penyewaan = require("./penyewaan.model")(sequelize, DataTypes);
+db.ActivityLog = require("./activity_log.model")(sequelize, DataTypes);
+db.Pengiriman = require("./pengiriman")(sequelize, DataTypes);
 
 // =============================
 // RELASI antar Model
 // =============================
 
 // Kendaraan → Penyewaan
-db.kendaraan.hasMany(db.penyewaan, {
+db.Kendaraan.hasMany(db.Penyewaan, {
   foreignKey: "kendaraan_id",
   as: "penyewaans",
 });
-db.penyewaan.belongsTo(db.kendaraan, {
+db.Penyewaan.belongsTo(db.Kendaraan, {
   foreignKey: "kendaraan_id",
   as: "kendaraan",
 });
 
 // User → Penyewaan
-db.user.hasMany(db.penyewaan, {
+db.User.hasMany(db.Penyewaan, {
   foreignKey: "userId",
   as: "penyewaans",
 });
-db.penyewaan.belongsTo(db.user, {
+db.Penyewaan.belongsTo(db.User, {
   foreignKey: "userId",
   as: "user",
 });
 
-// User → ActivityLog (admin mencatat aksi)
-db.user.hasMany(db.activityLog, {
+// User → ActivityLog
+db.User.hasMany(db.ActivityLog, {
   foreignKey: "adminId",
   as: "logs",
 });
-db.activityLog.belongsTo(db.user, {
+db.ActivityLog.belongsTo(db.User, {
   foreignKey: "adminId",
   as: "admin",
 });
 
-// ==== RELASI PENGIRIMAN ====
 // Pengiriman → Penyewaan
-db.pengiriman.belongsTo(db.penyewaan, {
+db.Pengiriman.belongsTo(db.Penyewaan, {
   foreignKey: "penyewaan_id",
   as: "penyewaan",
 });
-db.penyewaan.hasMany(db.pengiriman, {
+db.Penyewaan.hasMany(db.Pengiriman, {
   foreignKey: "penyewaan_id",
   as: "pengirimans",
 });
 
-// (Optional) Pengiriman → User (admin input)
-db.pengiriman.belongsTo(db.user, {
+// Pengiriman → User (admin input)
+db.Pengiriman.belongsTo(db.User, {
   foreignKey: "admin_id",
   as: "admin",
 });
-db.user.hasMany(db.pengiriman, {
+db.User.hasMany(db.Pengiriman, {
   foreignKey: "admin_id",
   as: "pengirimans",
 });

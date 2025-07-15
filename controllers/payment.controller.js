@@ -1,31 +1,33 @@
 const db = require("../models");
-const Penyewaan = db.Penyewaan;
+const { Penyewaan } = db;
 
 exports.webhook = async (req, res) => {
   try {
     const payload = req.body;
     console.log("📩 Webhook Payload:", JSON.stringify(payload, null, 2));
 
+    // Ambil ID & Status dari payload
     const external_id =
-      payload.reference_id ||
-      payload.external_id ||
-      payload.data?.reference_id ||
-      payload.data?.external_id ||
-      payload.data?.id;
+      payload?.reference_id ||
+      payload?.external_id ||
+      payload?.data?.reference_id ||
+      payload?.data?.external_id ||
+      payload?.data?.id;
 
     const status =
-      payload.status || payload.data?.status || payload?.invoice?.status;
+      payload?.status || payload?.data?.status || payload?.invoice?.status;
 
     const payment_method =
-      payload.payment_method || payload.data?.payment_method;
+      payload?.payment_method || payload?.data?.payment_method;
     const payment_channel =
-      payload.payment_channel || payload.data?.payment_channel;
+      payload?.payment_channel || payload?.data?.payment_channel;
 
     if (!external_id || !status) {
       console.warn("⚠️ Data kurang: external_id/status");
       return res.status(400).json({ message: "Data webhook tidak lengkap" });
     }
 
+    // Cari penyewaan berdasarkan external_id
     const penyewaan = await Penyewaan.findOne({ where: { external_id } });
 
     if (!penyewaan) {
@@ -33,9 +35,13 @@ exports.webhook = async (req, res) => {
       return res.status(404).json({ message: "Penyewaan tidak ditemukan" });
     }
 
+    // Tentukan metode pembayaran
     const metodeBayar = payment_channel || payment_method || "TIDAK DIKETAHUI";
 
-    switch (status.toUpperCase()) {
+    // Update status berdasarkan status dari Xendit
+    const normalizedStatus = status.toUpperCase();
+
+    switch (normalizedStatus) {
       case "PAID":
       case "SUCCEEDED":
         penyewaan.status = "BERHASIL";
@@ -49,10 +55,10 @@ exports.webhook = async (req, res) => {
         break;
       default:
         penyewaan.status = "MENUNGGU_PEMBAYARAN";
-        break;
     }
 
     penyewaan.metode_pembayaran = metodeBayar;
+
     await penyewaan.save();
 
     console.log("✅ Webhook sukses update:", {
