@@ -360,10 +360,12 @@ exports.getByDateRange = async (req, res) => {
 exports.webhook = async (req, res) => {
   try {
     const payload = req.body || {};
+
+    // Ambil external_id dari berbagai kemungkinan field (fallback)
     const external_id =
       payload.external_id ||
       payload.data?.external_id ||
-      payload.data?.reference_id || // ✅ Tambahan penting
+      payload.data?.reference_id || // ✅ penting!
       payload?.reference_id;
 
     const status = payload.status || payload.data?.status;
@@ -374,15 +376,23 @@ exports.webhook = async (req, res) => {
       payload.data?.payment_channel ||
       "TIDAK DIKETAHUI";
 
+    // Logging untuk debug
+    console.log("📦 Webhook Payload:", JSON.stringify(req.body, null, 2));
+    console.log("🔍 Parsed external_id:", external_id);
+    console.log("📊 Parsed status:", status);
+
+    // Validasi wajib
     if (!external_id || !status) {
       return res.status(400).json({ message: "Data webhook tidak lengkap" });
     }
 
+    // Cek penyewaan
     const penyewaan = await Penyewaan.findOne({ where: { external_id } });
-    if (!penyewaan)
+    if (!penyewaan) {
       return res.status(404).json({ message: "Penyewaan tidak ditemukan" });
+    }
 
-    // Jika gagal bayar, kembalikan stok
+    // Kembalikan stok kalau gagal bayar
     if (["EXPIRED", "FAILED", "CANCELLED"].includes(status.toUpperCase())) {
       const kendaraan = await Kendaraan.findByPk(penyewaan.kendaraan_id);
       if (kendaraan) {
@@ -391,7 +401,7 @@ exports.webhook = async (req, res) => {
       }
     }
 
-    // Update status penyewaan
+    // Update status
     switch (status.toUpperCase()) {
       case "PAID":
       case "SUCCEEDED":
@@ -406,7 +416,6 @@ exports.webhook = async (req, res) => {
         break;
       default:
         penyewaan.status = "MENUNGGU_PEMBAYARAN";
-        break;
     }
 
     penyewaan.metode_pembayaran = metode;
@@ -415,7 +424,9 @@ exports.webhook = async (req, res) => {
     return res.status(200).json({ message: "Webhook berhasil diproses" });
   } catch (err) {
     console.error("❌ Webhook error:", err.message);
-    res.status(500).json({ message: "Server error saat memproses webhook" });
+    return res
+      .status(500)
+      .json({ message: "Server error saat memproses webhook" });
   }
 };
 
