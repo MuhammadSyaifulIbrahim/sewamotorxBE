@@ -54,7 +54,7 @@ const validatePenyewaanData = (req, res, next) => {
 // ======================== ROUTES ========================
 
 // ✅ Webhook dari Xendit (tanpa auth)
-router.post("/payment/xendit-callback", penyewaanController.webhook);
+router.post("/webhook", penyewaanController.webhook);
 
 // 🔒 Export penyewaan ke Excel
 router.get("/export/excel", authenticateToken, penyewaanController.exportExcel);
