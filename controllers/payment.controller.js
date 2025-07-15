@@ -9,7 +9,10 @@ exports.webhook = async (req, res) => {
 
     // Fallback ke nested jika diperlukan
     const external_id =
-      payload.external_id || payload.data?.external_id || payload?.id;
+      payload.reference_id ||
+      payload.external_id ||
+      payload.data?.external_id ||
+      payload?.id;
     const status =
       payload.status || payload.data?.status || payload?.invoice?.status;
     const payment_method =
