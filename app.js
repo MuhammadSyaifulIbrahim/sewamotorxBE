@@ -1,3 +1,4 @@
+// app.js
 const dotenv = require("dotenv");
 dotenv.config();
 
@@ -47,7 +48,7 @@ db.sequelize
       const adminEmail = process.env.ADMIN_EMAIL;
       const adminPassword = process.env.ADMIN_PASSWORD;
       if (adminEmail && adminPassword) {
-        // === TAMBAHKAN FIELD VERIFIED SESUAI MODEL ===
+        // Sesuaikan dengan field yang ada di model user
         const adminDefaults = {
           nama: "Admin Rental",
           username: "admin",
@@ -55,8 +56,7 @@ db.sequelize
           password: bcrypt.hashSync(adminPassword, 10),
           role: "admin",
           status: "aktif",
-          // GANTI SESUAI FIELD DI MODEL KAMU:
-          email_verified: true, // atau verified: true, atau is_verified: true
+          email_verified: true, // atau sesuaikan field di modelmu
         };
 
         const [admin, created] = await db.user.findOrCreate({
@@ -79,7 +79,7 @@ db.sequelize
 
     // Start Server
     app.listen(PORT, () => {
-      console.log(`🚀 Server running at http://localhost:${PORT}`);
+      console.log(`🚀 Server running on port ${PORT}`);
     });
   })
   .catch((err) => {
