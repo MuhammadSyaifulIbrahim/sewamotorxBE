@@ -124,7 +124,7 @@ exports.create = async (req, res) => {
         .toLowerCase()}@sewamotor.com`,
       description: `Penyewaan ${kendaraan.nama} - ${hari} hari`,
       amount: hargaTotal,
-      redirectURL: "http://localhost:5173/dashboard/history",
+      redirectURL: `${process.env.FRONTEND_URL}/dashboard/history`,
     });
 
     const penyewaanData = {
@@ -360,7 +360,12 @@ exports.getByDateRange = async (req, res) => {
 exports.webhook = async (req, res) => {
   try {
     const payload = req.body || {};
-    const external_id = payload.external_id || payload.data?.external_id;
+    const external_id =
+      payload.external_id ||
+      payload.data?.external_id ||
+      payload.data?.reference_id || // ✅ Tambahan penting
+      payload?.reference_id;
+
     const status = payload.status || payload.data?.status;
     const metode =
       payload.payment_method ||
