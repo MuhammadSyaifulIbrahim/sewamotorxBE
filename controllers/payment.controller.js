@@ -9,12 +9,14 @@ exports.webhook = async (req, res) => {
 
     // Fallback ke nested jika diperlukan
     const external_id =
-      payload.reference_id ||
       payload.external_id ||
       payload.data?.external_id ||
+      payload.data?.reference_id || // ⬅️ tambahkan ini
       payload?.id;
+
     const status =
       payload.status || payload.data?.status || payload?.invoice?.status;
+
     const payment_method =
       payload.payment_method || payload.data?.payment_method;
     const payment_channel =
