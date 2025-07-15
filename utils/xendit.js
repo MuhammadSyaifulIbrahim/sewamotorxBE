@@ -45,8 +45,8 @@ const createInvoice = async ({
     console.log("📦 Invoice amount yang dikirim ke Xendit:", amount);
 
     const payload = {
-      external_id: `XND-${Date.now()}`, // Harus unik untuk Xendit
-      reference_id: externalID, // Penting: disamakan dengan DB
+      external_id: externalID, // FIXED: agar cocok dengan DB
+      reference_id: externalID, // untuk webhook sinkron
       payer_email: payerEmail,
       description,
       amount,

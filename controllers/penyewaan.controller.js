@@ -119,6 +119,7 @@ exports.create = async (req, res) => {
     const externalID = `INV-${Date.now()}`;
     const invoice = await createInvoice({
       externalID,
+      referenceID: externalID, // tambahkan ini agar masuk ke reference_id di webhook
       payerEmail: `${nama_penyewa
         .replace(/\s/g, "")
         .toLowerCase()}@sewamotor.com`,
@@ -370,12 +371,12 @@ exports.webhook = async (req, res) => {
     const payload = req.body || {};
     const data = payload.data || {};
 
-    // Ambil nilai external_id (reference_id)
-    const external_id =
-      payload.external_id ||
-      payload.reference_id ||
+    // Ambil nilai reference_id yang kamu tetapkan sebagai external_id saat membuat invoice
+    const reference_id =
+      data.reference_id ||
       data.external_id ||
-      data.reference_id;
+      payload.reference_id ||
+      payload.external_id;
 
     const status =
       data.status || payload.status || data.payment_method?.status || "UNKNOWN";
@@ -388,20 +389,24 @@ exports.webhook = async (req, res) => {
       "TIDAK DIKETAHUI";
 
     console.log("📦 Payload Webhook:", JSON.stringify(payload, null, 2));
-    console.log("🔍 external_id:", external_id);
+    console.log("🔍 reference_id:", reference_id);
     console.log("📊 status:", status);
     console.log("💳 metode:", metode);
 
-    if (!external_id || !status) {
+    if (!reference_id || !status) {
       return res.status(400).json({ message: "Data webhook tidak lengkap" });
     }
 
-    const penyewaan = await Penyewaan.findOne({ where: { external_id } });
+    // Cari berdasarkan external_id yang disamakan dengan reference_id
+    const penyewaan = await Penyewaan.findOne({
+      where: { external_id: reference_id },
+    });
+
     if (!penyewaan) {
       return res.status(404).json({ message: "Penyewaan tidak ditemukan" });
     }
 
-    // Kembalikan stok kalau gagal bayar
+    // Kembalikan stok kalau pembayaran gagal/batal
     if (["EXPIRED", "FAILED", "CANCELLED"].includes(status.toUpperCase())) {
       const kendaraan = await Kendaraan.findByPk(penyewaan.kendaraan_id);
       if (kendaraan) {
@@ -410,7 +415,7 @@ exports.webhook = async (req, res) => {
       }
     }
 
-    // Update status penyewaan
+    // Update status penyewaan sesuai status pembayaran
     switch (status.toUpperCase()) {
       case "PAID":
       case "SUCCEEDED":
