@@ -1,0 +1,629 @@
+const db = require("../models");
+const Penyewaan = db.penyewaan;
+const Kendaraan = db.kendaraan;
+const User = db.user;
+const { createInvoice } = require("../utils/xendit");
+const { Op } = require("sequelize");
+const cloudinary = require("../utils/cloudinary");
+const streamifier = require("streamifier");
+const logActivity = require("../utils/logActivity");
+const calculateDynamicPrice = require("../utils/dynamicPricing");
+const ExcelJS = require("exceljs");
+const PDFDocument = require("pdfkit");
+
+const uploadBufferToCloudinary = (buffer, folder = "sewamotor/penyewaan") => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder },
+      (error, result) => {
+        if (result) resolve(result);
+        else reject(error);
+      }
+    );
+    streamifier.createReadStream(buffer).pipe(stream);
+  });
+};
+
+exports.create = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const {
+      kendaraan_id,
+      nama_penyewa,
+      nomor_telepon,
+      jadwal_booking,
+      jam_pengambilan,
+      durasi_hari,
+      metode_pengambilan,
+      metode_pengembalian,
+      alamat_pengambilan,
+      alamat_pengembalian,
+      keterangan,
+    } = req.body;
+
+    if (
+      !kendaraan_id ||
+      !nama_penyewa ||
+      !nomor_telepon ||
+      !jadwal_booking ||
+      !metode_pengambilan
+    ) {
+      return res.status(400).json({ message: "Data tidak lengkap" });
+    }
+
+    const kendaraan = await Kendaraan.findByPk(parseInt(kendaraan_id));
+    if (!kendaraan)
+      return res.status(400).json({ message: "Kendaraan tidak ditemukan" });
+    if (kendaraan.stok <= 0)
+      return res.status(400).json({ message: "Kendaraan tidak tersedia" });
+
+    const hari = Math.max(parseInt(durasi_hari) || 1, 1);
+
+    if (!jadwal_booking || !jam_pengambilan) {
+      return res
+        .status(400)
+        .json({ message: "Tanggal & jam pengambilan wajib diisi" });
+    }
+
+    const [jam, menit] = jam_pengambilan.split(":").map(Number);
+    if (
+      isNaN(jam) ||
+      isNaN(menit) ||
+      jam < 0 ||
+      jam > 23 ||
+      menit < 0 ||
+      menit > 59
+    ) {
+      return res
+        .status(400)
+        .json({ message: "Format jam_pengambilan tidak valid (HH:MM)" });
+    }
+
+    const fullPickupDateTime = new Date(jadwal_booking);
+    fullPickupDateTime.setHours(jam);
+    fullPickupDateTime.setMinutes(menit);
+    fullPickupDateTime.setSeconds(0);
+    fullPickupDateTime.setMilliseconds(0);
+
+    const jam_pengembalian = new Date(fullPickupDateTime);
+    jam_pengembalian.setDate(jam_pengembalian.getDate() + hari);
+
+    const hargaInfo = calculateDynamicPrice({
+      harga_per_hari: kendaraan.harga_sewa,
+      diskon_produk: kendaraan.diskon || 0,
+      jam_pengambilan: fullPickupDateTime,
+      jam_pengembalian,
+    });
+
+    const hargaTotal = hargaInfo.total;
+
+    let foto_ktp_url = null;
+    let foto_sim_url = null;
+
+    if (req.files?.foto_ktp?.[0]?.buffer) {
+      const result = await uploadBufferToCloudinary(
+        req.files.foto_ktp[0].buffer,
+        "sewamotor/penyewaan"
+      );
+      foto_ktp_url = result.secure_url;
+    }
+
+    if (req.files?.foto_sim?.[0]?.buffer) {
+      const result = await uploadBufferToCloudinary(
+        req.files.foto_sim[0].buffer,
+        "sewamotor/penyewaan"
+      );
+      foto_sim_url = result.secure_url;
+    }
+
+    const externalID = `INV-${Date.now()}`;
+    const invoice = await createInvoice({
+      externalID,
+      payerEmail: `${nama_penyewa
+        .replace(/\s/g, "")
+        .toLowerCase()}@sewamotor.com`,
+      description: `Penyewaan ${kendaraan.nama} - ${hari} hari`,
+      amount: hargaTotal,
+      redirectURL: "http://localhost:5173/dashboard/history",
+    });
+
+    const penyewaanData = {
+      kendaraan_id: parseInt(kendaraan_id),
+      userId: parseInt(userId),
+      nama_penyewa,
+      nomor_telepon,
+      jadwal_booking: new Date(jadwal_booking),
+      jam_pengambilan: fullPickupDateTime,
+      jam_pengembalian,
+      durasi_hari: hari,
+      metode_pengambilan,
+      metode_pengembalian,
+      alamat_pengambilan,
+      alamat_pengembalian,
+      keterangan,
+      foto_ktp: foto_ktp_url,
+      foto_sim: foto_sim_url,
+      status: "MENUNGGU_PEMBAYARAN",
+      payment_url: invoice.invoice_url,
+      external_id: externalID,
+      harga_total: hargaTotal,
+    };
+
+    await Penyewaan.create(penyewaanData);
+    kendaraan.stok -= 1;
+    await kendaraan.save();
+
+    res.json({
+      message: "Berhasil membuat penyewaan",
+      payment_url: invoice.invoice_url,
+      harga_total: hargaTotal,
+      durasi_hari: hari,
+    });
+  } catch (err) {
+    console.error("\u274C ERROR CREATE PENYEWAAN:", err.message);
+    res
+      .status(500)
+      .json({ message: "Terjadi kesalahan saat menyimpan penyewaan" });
+  }
+};
+
+// ======================
+// UPDATE jam + durasi
+// ======================
+exports.updateJamPenyewaan = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { jam_pengambilan, durasi_hari } = req.body;
+
+    const data = await Penyewaan.findByPk(id, {
+      include: [{ model: Kendaraan, as: "kendaraan" }],
+    });
+    if (!data)
+      return res.status(404).json({ message: "Penyewaan tidak ditemukan" });
+
+    const newDuration = Math.max(parseInt(durasi_hari) || 1, 1);
+
+    if (jam_pengambilan) {
+      data.jam_pengambilan = new Date(jam_pengambilan);
+    }
+
+    data.durasi_hari = newDuration;
+
+    // Update total harga
+    if (data.kendaraan && data.jam_pengambilan) {
+      const kembali = new Date(data.jam_pengambilan);
+      kembali.setDate(kembali.getDate() + newDuration);
+      data.jam_pengembalian = kembali;
+
+      const updatedPrice = calculateDynamicPrice({
+        harga_per_hari: data.kendaraan.harga_sewa,
+        diskon_produk: data.kendaraan.diskon || 0,
+        jam_pengambilan: data.jam_pengambilan,
+        jam_pengembalian: kembali,
+      });
+      data.harga_total = updatedPrice.total;
+    }
+
+    // Hitung pengembalian
+    if (data.jam_pengambilan && newDuration) {
+      const kembali = new Date(data.jam_pengambilan);
+      kembali.setDate(kembali.getDate() + newDuration);
+      data.jam_pengembalian = kembali;
+    }
+
+    // Cek keterlambatan
+    let keterangan = data.keterangan || "-";
+    if (data.jam_pengembalian && data.durasi_hari) {
+      const expected = new Date(data.jam_pengambilan);
+      expected.setDate(expected.getDate() + data.durasi_hari);
+
+      const actual = new Date(data.jam_pengembalian);
+      const terlambat = Math.floor((actual - expected) / (1000 * 60 * 60 * 24));
+
+      if (terlambat > 0) {
+        keterangan = `Terlambat ${terlambat} hari (Rp${terlambat * 50000})`;
+      } else if (terlambat === 0) {
+        keterangan = "Tepat Waktu";
+      }
+    }
+
+    data.keterangan = keterangan;
+    await data.save();
+    await logActivity(
+      req.user.id,
+      "Update Jam Penyewaan",
+      `Admin mengubah jam penyewaan ID ${id} menjadi ${data.jam_pengambilan} selama ${data.durasi_hari} hari`
+    );
+    res.json({
+      message: "Jam penyewaan berhasil diperbarui",
+      data: {
+        id: data.id,
+        jam_pengambilan: data.jam_pengambilan,
+        jam_pengembalian: data.jam_pengembalian,
+        durasi_hari: data.durasi_hari,
+        harga_total: data.harga_total,
+        keterangan: data.keterangan,
+      },
+    });
+  } catch (err) {
+    console.error("❌ Gagal update jam:", err.message);
+    res.status(500).json({ message: "Gagal memperbarui jam penyewaan" });
+  }
+};
+
+// ======================
+// GET penyewaan user
+// ======================
+exports.getByUser = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const data = await Penyewaan.findAll({
+      where: { userId },
+      include: [{ model: Kendaraan, as: "kendaraan" }],
+      order: [["createdAt", "DESC"]],
+    });
+    res.json(data);
+  } catch (err) {
+    console.error("❌ ERROR GET BY USER:", err.message);
+    res.status(500).json({ message: "Gagal memuat riwayat penyewaan" });
+  }
+};
+
+// ======================
+// GET by ID
+// ======================
+exports.getById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const data = await Penyewaan.findByPk(id, {
+      include: [{ model: Kendaraan, as: "kendaraan" }],
+    });
+    if (!data)
+      return res.status(404).json({ message: "Penyewaan tidak ditemukan" });
+    res.json(data);
+  } catch (err) {
+    console.error("❌ ERROR GET BY ID:", err.message);
+    res.status(500).json({ message: "Gagal mengambil detail penyewaan" });
+  }
+};
+
+// ======================
+// GET semua
+// ======================
+exports.getAll = async (_req, res) => {
+  try {
+    const data = await Penyewaan.findAll({
+      include: [
+        { model: Kendaraan, as: "kendaraan" },
+        { model: User, as: "user", attributes: ["id", "nama", "email"] },
+      ],
+      order: [["createdAt", "DESC"]],
+    });
+
+    // Tandai keterlambatan secara dinamis
+    const now = new Date();
+    data.forEach((item) => {
+      if (
+        item.status === "BERHASIL" &&
+        item.jam_pengembalian &&
+        new Date(item.jam_pengembalian) < now
+      ) {
+        item.dataValues.keterlambatan = true;
+      } else {
+        item.dataValues.keterlambatan = false;
+      }
+    });
+
+    res.json(data);
+  } catch (err) {
+    console.error("❌ ERROR GET ALL:", err.message);
+    res.status(500).json({ message: "Gagal mengambil semua data penyewaan" });
+  }
+};
+
+// ======================
+// GET by Date Range
+// ======================
+exports.getByDateRange = async (req, res) => {
+  try {
+    const { dari, sampai } = req.query;
+
+    if (!dari || !sampai) {
+      return res
+        .status(400)
+        .json({ message: "Parameter dari dan sampai harus diisi" });
+    }
+
+    const data = await Penyewaan.findAll({
+      where: {
+        jadwal_booking: {
+          [Op.between]: [new Date(dari), new Date(sampai)],
+        },
+      },
+      include: [
+        { model: Kendaraan, as: "kendaraan" },
+        { model: User, as: "user" },
+      ],
+      order: [["jadwal_booking", "DESC"]],
+    });
+
+    res.json(data);
+  } catch (err) {
+    console.error("❌ ERROR FILTER TANGGAL:", err.message);
+    res.status(500).json({ message: "Gagal memfilter data penyewaan" });
+  }
+};
+
+// ======================
+// WEBHOOK dari Xendit
+// ======================
+exports.webhook = async (req, res) => {
+  try {
+    const payload = req.body || {};
+    const external_id = payload.external_id || payload.data?.external_id;
+    const status = payload.status || payload.data?.status;
+    const metode =
+      payload.payment_method ||
+      payload.data?.payment_method ||
+      payload.payment_channel ||
+      payload.data?.payment_channel ||
+      "TIDAK DIKETAHUI";
+
+    if (!external_id || !status) {
+      return res.status(400).json({ message: "Data webhook tidak lengkap" });
+    }
+
+    const penyewaan = await Penyewaan.findOne({ where: { external_id } });
+    if (!penyewaan)
+      return res.status(404).json({ message: "Penyewaan tidak ditemukan" });
+
+    // Jika gagal bayar, kembalikan stok
+    if (["EXPIRED", "FAILED", "CANCELLED"].includes(status.toUpperCase())) {
+      const kendaraan = await Kendaraan.findByPk(penyewaan.kendaraan_id);
+      if (kendaraan) {
+        kendaraan.stok += 1;
+        await kendaraan.save();
+      }
+    }
+
+    // Update status penyewaan
+    switch (status.toUpperCase()) {
+      case "PAID":
+      case "SUCCEEDED":
+        penyewaan.status = "BERHASIL";
+        break;
+      case "EXPIRED":
+      case "FAILED":
+        penyewaan.status = "GAGAL";
+        break;
+      case "CANCELLED":
+        penyewaan.status = "DIBATALKAN";
+        break;
+      default:
+        penyewaan.status = "MENUNGGU_PEMBAYARAN";
+        break;
+    }
+
+    penyewaan.metode_pembayaran = metode;
+    await penyewaan.save();
+
+    return res.status(200).json({ message: "Webhook berhasil diproses" });
+  } catch (err) {
+    console.error("❌ Webhook error:", err.message);
+    res.status(500).json({ message: "Server error saat memproses webhook" });
+  }
+};
+
+// ======================
+// DELETE penyewaan
+// ======================
+exports.deletePenyewaan = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const data = await Penyewaan.findByPk(id, {
+      include: [{ model: Kendaraan, as: "kendaraan" }],
+    });
+    if (!data) return res.status(404).json({ message: "Data tidak ditemukan" });
+
+    if (data.kendaraan) {
+      data.kendaraan.stok += 1;
+      await data.kendaraan.save();
+    }
+
+    await data.destroy();
+    await logActivity(
+      req.user.id,
+      "Hapus Penyewaan",
+      `Admin menghapus penyewaan oleh ${data.nama_penyewa} (${data.nomor_telepon}) untuk kendaraan ${data.kendaraan?.nama}`
+    );
+    res.json({ message: "Berhasil dihapus" });
+  } catch (err) {
+    console.error("❌ ERROR DELETE:", err.message);
+    res.status(500).json({ message: "Gagal menghapus data" });
+  }
+};
+
+// SELESAIKAN PENYEWAAN
+exports.markAsSelesai = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const data = await Penyewaan.findByPk(id);
+
+    if (!data) {
+      return res.status(404).json({ message: "Penyewaan tidak ditemukan" });
+    }
+
+    console.log(">> Status saat ini:", data.status);
+
+    // TERIMA status "DALAM PENYEWAAN" atau "BERHASIL"
+    if (!["BERHASIL", "DALAM PENYEWAAN"].includes(data.status)) {
+      return res.status(400).json({
+        message: "Penyewaan belum dibayar atau sudah selesai sebelumnya",
+      });
+    }
+
+    // Update status menjadi SELESAI tanpa mengubah metode pembayaran
+    await Penyewaan.update({ status: "SELESAI" }, { where: { id } });
+    await logActivity(
+      req.user.id,
+      "Selesaikan Penyewaan",
+      `Admin menyelesaikan penyewaan ID ${id}`
+    );
+
+    res.json({ message: "Penyewaan berhasil diselesaikan", id });
+  } catch (err) {
+    console.error("❌ ERROR SELESAIKAN:", err.message);
+    res.status(500).json({ message: "Gagal menyelesaikan penyewaan" });
+  }
+};
+
+exports.exportExcel = async (req, res) => {
+  try {
+    const { dari, sampai } = req.query;
+    if (!dari || !sampai) {
+      return res
+        .status(400)
+        .json({ message: "Parameter dari & sampai harus diisi" });
+    }
+
+    const penyewaanList = await Penyewaan.findAll({
+      where: {
+        jadwal_booking: { [Op.between]: [new Date(dari), new Date(sampai)] },
+        status: "SELESAI", // hanya pesanan selesai
+      },
+      include: [
+        { model: Kendaraan, as: "kendaraan" },
+        { model: User, as: "user", attributes: ["email"] },
+      ],
+      order: [["jadwal_booking", "ASC"]],
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Pesanan Selesai");
+
+    worksheet.columns = [
+      { header: "Nama Penyewa", key: "nama_penyewa", width: 18 },
+      { header: "Email", key: "email", width: 24 },
+      { header: "Motor", key: "motor", width: 20 },
+      { header: "Jadwal Booking", key: "jadwal_booking", width: 21 },
+      { header: "Durasi (hari)", key: "durasi_hari", width: 13 },
+      { header: "Total Biaya", key: "harga_total", width: 16 },
+      { header: "Status", key: "status", width: 14 },
+    ];
+
+    let totalPendapatan = 0;
+
+    penyewaanList.forEach((row) => {
+      worksheet.addRow({
+        nama_penyewa: row.nama_penyewa,
+        email: row.user?.email || "-",
+        motor: row.kendaraan?.nama || "-",
+        jadwal_booking: row.jadwal_booking
+          ? new Date(row.jadwal_booking).toLocaleString("id-ID")
+          : "-",
+        durasi_hari: row.durasi_hari,
+        harga_total: row.harga_total,
+        status: row.status.replace(/_/g, " "),
+      });
+      totalPendapatan += Number(row.harga_total || 0);
+    });
+
+    // Tambahkan baris kosong dan total pendapatan di bawahnya
+    worksheet.addRow({});
+    worksheet.addRow({
+      nama_penyewa: "",
+      email: "",
+      motor: "",
+      jadwal_booking: "",
+      durasi_hari: "",
+      harga_total: "Total Pendapatan",
+      status: `Rp${totalPendapatan.toLocaleString("id-ID")}`,
+    });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=pesanan_selesai.xlsx"
+    );
+    await workbook.xlsx.write(res);
+    res.end();
+  } catch (err) {
+    console.error("❌ Export Excel error:", err);
+    res.status(500).json({ message: "Gagal export Excel" });
+  }
+};
+
+exports.exportPDF = async (req, res) => {
+  try {
+    const { dari, sampai } = req.query;
+    if (!dari || !sampai) {
+      return res
+        .status(400)
+        .json({ message: "Parameter dari & sampai harus diisi" });
+    }
+
+    const penyewaanList = await Penyewaan.findAll({
+      where: {
+        jadwal_booking: { [Op.between]: [new Date(dari), new Date(sampai)] },
+        status: "SELESAI",
+      },
+      include: [
+        { model: Kendaraan, as: "kendaraan" },
+        { model: User, as: "user", attributes: ["email"] },
+      ],
+      order: [["jadwal_booking", "ASC"]],
+    });
+
+    let totalPendapatan = 0;
+
+    const doc = new PDFDocument({ margin: 30, size: "A4" });
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=pesanan_selesai.pdf"
+    );
+    doc.pipe(res);
+
+    doc.fontSize(18).text("Laporan Pesanan Selesai", { align: "center" });
+    doc.moveDown(1);
+
+    penyewaanList.forEach((row, idx) => {
+      doc
+        .fontSize(12)
+        .text(`${idx + 1}. Nama Penyewa: ${row.nama_penyewa}`)
+        .text(`   Email: ${row.user?.email || "-"}`)
+        .text(`   Motor: ${row.kendaraan?.nama || "-"}`)
+        .text(
+          `   Jadwal Booking: ${
+            row.jadwal_booking
+              ? new Date(row.jadwal_booking).toLocaleString("id-ID")
+              : "-"
+          }`
+        )
+        .text(`   Durasi: ${row.durasi_hari} hari`)
+        .text(
+          `   Total Biaya: Rp${Number(row.harga_total).toLocaleString("id-ID")}`
+        )
+        .text(`   Status: ${row.status.replace(/_/g, " ")}`)
+        .moveDown(0.7);
+
+      totalPendapatan += Number(row.harga_total || 0);
+    });
+
+    doc.moveDown(1);
+    doc
+      .fontSize(14)
+      .fillColor("green")
+      .text(`Total Pendapatan: Rp${totalPendapatan.toLocaleString("id-ID")}`, {
+        align: "right",
+      });
+
+    doc.end();
+  } catch (err) {
+    console.error("❌ Export PDF error:", err);
+    res.status(500).json({ message: "Gagal export PDF" });
+  }
+};
