@@ -12,7 +12,7 @@ if (!XENDIT_API_KEY) {
 /**
  * Membuat invoice pembayaran menggunakan Xendit
  * @param {Object} param0
- * @param {string} param0.externalID
+ * @param {string} param0.externalID - Digunakan sebagai reference_id
  * @param {string} param0.payerEmail
  * @param {string} param0.description
  * @param {number} param0.amount
@@ -41,31 +41,27 @@ const createInvoice = async ({
         "❌ Parameter createInvoice tidak lengkap atau amount tidak valid"
       );
     }
+
     console.log("📦 Invoice amount yang dikirim ke Xendit:", amount);
 
-    if (isNaN(amount) || amount <= 0) {
-      throw new Error("❌ Nominal amount tidak valid");
-    }
+    const payload = {
+      external_id: `XND-${Date.now()}`, // Harus unik untuk Xendit
+      reference_id: externalID, // Penting: disamakan dengan DB
+      payer_email: payerEmail,
+      description,
+      amount,
+      invoice_duration: expiryDuration,
+      success_redirect_url: redirectURL,
+    };
 
-    console.log("📤 Mengirim request invoice ke Xendit...");
+    console.log("📤 Payload ke Xendit:", payload);
 
-    const response = await axios.post(
-      XENDIT_BASE_URL,
-      {
-        external_id: externalID,
-        payer_email: payerEmail,
-        description,
-        amount,
-        invoice_duration: expiryDuration,
-        success_redirect_url: redirectURL,
+    const response = await axios.post(XENDIT_BASE_URL, payload, {
+      auth: {
+        username: XENDIT_API_KEY,
+        password: "",
       },
-      {
-        auth: {
-          username: XENDIT_API_KEY,
-          password: "", // kosong
-        },
-      }
-    );
+    });
 
     console.log("✅ Invoice berhasil dibuat. Status:", response.status);
     return response.data;
