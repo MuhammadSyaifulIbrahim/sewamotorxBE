@@ -359,6 +359,14 @@ exports.getByDateRange = async (req, res) => {
 // ======================
 exports.webhook = async (req, res) => {
   try {
+    const CALLBACK_SECRET = process.env.XENDIT_CALLBACK_TOKEN;
+
+    // Verifikasi token callback (dari header X-CALLBACK-TOKEN)
+    const callbackToken = req.headers["x-callback-token"];
+    if (!callbackToken || callbackToken !== CALLBACK_SECRET) {
+      return res.status(401).json({ message: "Unauthorized webhook request" });
+    }
+
     const payload = req.body || {};
     const data = payload.data || {};
 
@@ -369,11 +377,9 @@ exports.webhook = async (req, res) => {
       data.external_id ||
       data.reference_id;
 
-    // Ambil status dari level data atau payment_method
     const status =
       data.status || payload.status || data.payment_method?.status || "UNKNOWN";
 
-    // Metode pembayaran (fallback)
     const metode =
       data.payment_method?.type ||
       data.payment_method?.channel_code ||
@@ -381,24 +387,21 @@ exports.webhook = async (req, res) => {
       payload.payment_method ||
       "TIDAK DIKETAHUI";
 
-    // === Log debugging
     console.log("📦 Payload Webhook:", JSON.stringify(payload, null, 2));
     console.log("🔍 external_id:", external_id);
     console.log("📊 status:", status);
     console.log("💳 metode:", metode);
 
-    // Validasi awal
     if (!external_id || !status) {
       return res.status(400).json({ message: "Data webhook tidak lengkap" });
     }
 
-    // Cari penyewaan
     const penyewaan = await Penyewaan.findOne({ where: { external_id } });
     if (!penyewaan) {
       return res.status(404).json({ message: "Penyewaan tidak ditemukan" });
     }
 
-    // Jika gagal bayar, kembalikan stok
+    // Kembalikan stok kalau gagal bayar
     if (["EXPIRED", "FAILED", "CANCELLED"].includes(status.toUpperCase())) {
       const kendaraan = await Kendaraan.findByPk(penyewaan.kendaraan_id);
       if (kendaraan) {
