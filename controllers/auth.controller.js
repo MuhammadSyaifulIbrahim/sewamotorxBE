@@ -14,6 +14,9 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// Ambil base URL dari .env
+const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+
 // ======================= REGISTER =========================
 exports.register = async (req, res) => {
   try {
@@ -38,13 +41,13 @@ exports.register = async (req, res) => {
       email,
       password: hashedPassword,
       role,
-      status: "nonaktif", // default nonaktif
+      status: "nonaktif",
       is_verified: false,
       email_token: email_token,
     });
 
     // Kirim email verifikasi
-    const verifyUrl = `http://localhost:5173/verify?token=${email_token}`;
+    const verifyUrl = `${frontendUrl}/verify?token=${email_token}`;
     await transporter.sendMail({
       to: email,
       subject: "Verifikasi Akun MotoRent",
@@ -162,10 +165,10 @@ exports.forgotPassword = async (req, res) => {
 
     const resetToken = crypto.randomBytes(32).toString("hex");
     user.reset_token = resetToken;
-    user.reset_token_exp = Date.now() + 60 * 60 * 1000; // expire 1 jam
+    user.reset_token_exp = Date.now() + 60 * 60 * 1000;
     await user.save();
 
-    const resetUrl = `http://localhost:5173/reset-password?token=${resetToken}`;
+    const resetUrl = `${frontendUrl}/reset-password?token=${resetToken}`;
     await transporter.sendMail({
       to: email,
       subject: "Reset Password MotoRent",
