@@ -361,38 +361,53 @@ exports.webhook = async (req, res) => {
   try {
     const payload = req.body || {};
 
-    // Ambil external_id dari berbagai kemungkinan field (fallback)
-    const external_id =
-      payload.external_id ||
-      payload.data?.external_id ||
-      payload.data?.reference_id || // ✅ penting!
-      payload?.reference_id;
+    // Debug: log full payload
+    console.log("📦 Webhook Payload:", JSON.stringify(payload, null, 2));
 
-    const status = payload.status || payload.data?.status;
+    // Ambil data dari payload
+    const data = payload?.data || payload; // fallback if not nested
+
+    const external_id =
+      data.external_id ||
+      data.reference_id || // Xendit biasanya pakai ini
+      payload.external_id ||
+      payload.reference_id;
+
+    const status =
+      data.status ||
+      payload.status ||
+      (payload.event === "payment.succeeded" ? "SUCCEEDED" : null);
+
     const metode =
+      data.payment_method ||
+      data.payment_channel ||
       payload.payment_method ||
-      payload.data?.payment_method ||
       payload.payment_channel ||
-      payload.data?.payment_channel ||
       "TIDAK DIKETAHUI";
 
-    // Logging untuk debug
-    console.log("📦 Webhook Payload:", JSON.stringify(req.body, null, 2));
-    console.log("🔍 Parsed external_id:", external_id);
-    console.log("📊 Parsed status:", status);
+    // Logging tambahan
+    console.log("🔍 external_id:", external_id);
+    console.log("📊 status:", status);
+    console.log("💳 metode:", metode);
 
-    // Validasi wajib
-    if (!external_id || !status) {
-      return res.status(400).json({ message: "Data webhook tidak lengkap" });
+    // Validasi minimal
+    if (!external_id) {
+      console.warn("❗ external_id tidak ditemukan");
+      return res.status(400).json({ message: "external_id tidak ditemukan" });
     }
 
-    // Cek penyewaan
+    if (!status) {
+      console.warn("❗ status tidak ditemukan");
+      return res.status(400).json({ message: "status tidak ditemukan" });
+    }
+
+    // Cari penyewaan berdasarkan external_id
     const penyewaan = await Penyewaan.findOne({ where: { external_id } });
     if (!penyewaan) {
       return res.status(404).json({ message: "Penyewaan tidak ditemukan" });
     }
 
-    // Kembalikan stok kalau gagal bayar
+    // Jika gagal bayar, kembalikan stok
     if (["EXPIRED", "FAILED", "CANCELLED"].includes(status.toUpperCase())) {
       const kendaraan = await Kendaraan.findByPk(penyewaan.kendaraan_id);
       if (kendaraan) {
@@ -401,7 +416,7 @@ exports.webhook = async (req, res) => {
       }
     }
 
-    // Update status
+    // Update status penyewaan
     switch (status.toUpperCase()) {
       case "PAID":
       case "SUCCEEDED":
@@ -421,6 +436,7 @@ exports.webhook = async (req, res) => {
     penyewaan.metode_pembayaran = metode;
     await penyewaan.save();
 
+    console.log("✅ Webhook berhasil diproses untuk:", external_id);
     return res.status(200).json({ message: "Webhook berhasil diproses" });
   } catch (err) {
     console.error("❌ Webhook error:", err.message);
