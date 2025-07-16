@@ -119,7 +119,8 @@ exports.create = async (req, res) => {
     const externalID = `INV-${Date.now()}`;
     const invoice = await createInvoice({
       externalID,
-      referenceID: externalID, // tambahkan ini agar masuk ke reference_id di webhook
+      referenceID: externalID, // ini boleh tetap, tapi optional aja
+      metadata: { external_id: externalID }, // TAMBAHKAN INI
       payerEmail: `${nama_penyewa
         .replace(/\s/g, "")
         .toLowerCase()}@sewamotor.com`,
@@ -373,10 +374,19 @@ exports.webhook = async (req, res) => {
 
     // Ambil nilai reference_id yang kamu tetapkan sebagai external_id saat membuat invoice
     const reference_id =
-      data.reference_id ||
-      data.external_id ||
-      payload.reference_id ||
-      payload.external_id;
+      data?.metadata?.external_id ||
+      data?.reference_id ||
+      data?.external_id ||
+      payload?.reference_id ||
+      payload?.external_id;
+
+    if (!reference_id) {
+      console.error(
+        "❌ [WEBHOOK] reference_id tidak ditemukan di payload berikut:"
+      );
+      console.dir(payload, { depth: null });
+      return res.status(400).json({ message: "reference_id tidak ditemukan" });
+    }
 
     const status =
       data.status || payload.status || data.payment_method?.status || "UNKNOWN";
