@@ -92,8 +92,13 @@ module.exports = (sequelize, DataTypes) => {
     external_id: {
       type: DataTypes.STRING,
       allowNull: false,
-      // unique: true,
+      unique: true, // aktifkan ini
     },
+    xendit_invoice_id: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+
     metode_pembayaran: {
       type: DataTypes.STRING,
       allowNull: true,
