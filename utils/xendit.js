@@ -12,7 +12,8 @@ if (!XENDIT_API_KEY) {
 /**
  * Membuat invoice pembayaran menggunakan Xendit
  * @param {Object} param0
- * @param {string} param0.externalID - Digunakan sebagai reference_id
+ * @param {string} param0.externalID - Akan digunakan sebagai `external_id` dan default `reference_id`
+ * @param {string} [param0.referenceID] - Opsional: untuk mengatur reference_id berbeda
  * @param {string} param0.payerEmail
  * @param {string} param0.description
  * @param {number} param0.amount
@@ -22,6 +23,7 @@ if (!XENDIT_API_KEY) {
  */
 const createInvoice = async ({
   externalID,
+  referenceID,
   payerEmail,
   description,
   amount,
@@ -45,8 +47,8 @@ const createInvoice = async ({
     console.log("📦 Invoice amount yang dikirim ke Xendit:", amount);
 
     const payload = {
-      external_id: externalID, // FIXED: agar cocok dengan DB
-      reference_id: externalID, // untuk webhook sinkron
+      external_id: externalID,
+      reference_id: referenceID || externalID, // ✅ gunakan referenceID jika tersedia
       payer_email: payerEmail,
       description,
       amount,
