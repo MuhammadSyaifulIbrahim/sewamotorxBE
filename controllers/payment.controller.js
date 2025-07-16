@@ -1,5 +1,5 @@
 const db = require("../models");
-const Penyewaan = db.Penyewaan;
+const Penyewaan = db.penyewaan;
 
 exports.webhook = async (req, res) => {
   try {
