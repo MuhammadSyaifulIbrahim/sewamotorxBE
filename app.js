@@ -29,9 +29,12 @@ app.use("/api/users", require("./routes/user.routes"));
 app.use("/activity-logs", require("./routes/activity_log.routes"));
 app.use("/api/pengiriman", require("./routes/pengiriman.routes"));
 
-// ✅ Tambahan khusus Webhook langsung dari Xendit
+// ✅ Webhook Xendit
 const paymentController = require("./controllers/payment.controller");
 app.post("/xendit-callback", paymentController.webhook);
+
+// ✅ Tambahan route untuk Google Maps jarak
+app.use("/api/maps", require("./routes/maps.routes"));
 
 const PORT = process.env.PORT || 3001;
 
