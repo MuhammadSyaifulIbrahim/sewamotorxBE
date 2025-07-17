@@ -1,11 +1,9 @@
+// routes/maps.routes.js
 const express = require("express");
 const router = express.Router();
 const mapsController = require("../controllers/maps.controller");
 
-router.get("/distance", mapsController.getDistance);
-
-console.log("✅ maps.routes.js loaded");
-
+// Logging + Handler sekaligus (pakai middleware inline)
 router.get(
   "/distance",
   (req, res, next) => {
@@ -14,5 +12,7 @@ router.get(
   },
   mapsController.getDistance
 );
+
+console.log("✅ maps.routes.js loaded");
 
 module.exports = router;

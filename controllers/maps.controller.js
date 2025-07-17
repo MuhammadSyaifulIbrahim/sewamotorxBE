@@ -1,3 +1,4 @@
+// controllers/maps.controller.js
 const axios = require("axios");
 
 exports.getDistance = async (req, res) => {
@@ -19,21 +20,31 @@ exports.getDistance = async (req, res) => {
     const response = await axios.get(url);
     const data = response.data;
 
-    // Tambahkan ini untuk debug log
+    // Debug log agar bisa pantau response Google
     console.log("🔍 GOOGLE RESPONSE:", JSON.stringify(data, null, 2));
 
-    if (data.rows[0].elements[0].status !== "OK") {
-      return res
-        .status(400)
-        .json({ error: "Gagal mendapatkan jarak", debug: data });
+    // Cek struktur dan handle error API Google
+    if (
+      !data.rows ||
+      !data.rows[0] ||
+      !data.rows[0].elements ||
+      !data.rows[0].elements[0] ||
+      data.rows[0].elements[0].status !== "OK"
+    ) {
+      return res.status(400).json({
+        error: "Gagal mendapatkan jarak dari Google",
+        debug: data,
+      });
     }
 
-    const distance = data.rows[0].elements[0].distance;
-    const duration = data.rows[0].elements[0].duration;
+    // Ambil data jarak & durasi
+    const element = data.rows[0].elements[0];
+    const distance = element.distance; // { text, value }
+    const duration = element.duration; // { text, value }
 
     return res.json({ distance, duration });
   } catch (err) {
     console.error("❌ Server error:", err.message);
-    return res.status(500).json({ error: "Server error" });
+    return res.status(500).json({ error: "Server error", detail: err.message });
   }
 };
