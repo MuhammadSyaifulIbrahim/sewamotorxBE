@@ -5,4 +5,4 @@ const { getAllLogs } = require("../controllers/activity_log.controller");
 
 router.get("/", getAllLogs);
 
-module.exports = router;
+module.exports = router; // <-- Pastikan ini di bawah semua kode router

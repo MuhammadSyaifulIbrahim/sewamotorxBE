@@ -1,7 +1,7 @@
 // models/activity_log.model.js
 module.exports = (sequelize, DataTypes) => {
   const ActivityLog = sequelize.define(
-    "ActivityLog",
+    "activityLog", // Pakai camelCase & singular agar konsisten dgn model lain
     {
       adminId: {
         type: DataTypes.INTEGER,
@@ -17,14 +17,14 @@ module.exports = (sequelize, DataTypes) => {
       },
     },
     {
-      tableName: "activity_logs",
+      tableName: "activity_logs", // Nama tabel di database
       timestamps: true,
+      underscored: false, // Jika field di db pakai snake_case, set true
     }
   );
 
   ActivityLog.associate = function (models) {
-    // Jika kamu punya model admin, relasikan di sini
-    ActivityLog.belongsTo(models.User, {
+    ActivityLog.belongsTo(models.user, {
       foreignKey: "adminId",
       as: "admin",
     });
