@@ -3,7 +3,6 @@ const { Op, fn, col } = db.Sequelize;
 
 const Penyewaan = db.penyewaan;
 const Kendaraan = db.kendaraan;
-const Pengiriman = db.pengiriman; // Pastikan model sudah ada
 
 const bulanPanjang = [
   "Januari",
@@ -98,7 +97,7 @@ exports.getStatistikBulanan = async (_req, res) => {
   }
 };
 
-/* 4. Pendapatan Bulanan (Penyewaan + Pengiriman) */
+/* 4. Pendapatan Bulanan (hanya dari Penyewaan) */
 exports.getPendapatanBulanan = async (_req, res) => {
   try {
     const tahun = new Date().getFullYear();
@@ -119,29 +118,12 @@ exports.getPendapatanBulanan = async (_req, res) => {
       raw: true,
     });
 
-    // Dapatkan pendapatan PENGIRIMAN per bulan
-    const pengirimanRaw = await Pengiriman.findAll({
-      attributes: [
-        [fn("MONTH", col("waktu_input")), "bulan"],
-        [fn("SUM", col("biaya")), "total_pengiriman"],
-      ],
-      where: db.Sequelize.where(fn("YEAR", col("waktu_input")), tahun),
-      group: [fn("MONTH", col("waktu_input"))],
-      raw: true,
-    });
-
     // Gabungkan hasil per bulan
     const lengkap = bulanPanjang.map((nama, i) => {
       const sewa = penyewaanRaw.find((x) => Number(x.bulan) === i + 1);
-      const kirim = pengirimanRaw.find((x) => Number(x.bulan) === i + 1);
-      const totalPendapatan =
-        (Number(sewa?.total_sewa) || 0) +
-        (Number(kirim?.total_pengiriman) || 0);
       return {
         bulan: nama,
-        total_pendapatan: totalPendapatan,
-        total_sewa: Number(sewa?.total_sewa) || 0,
-        total_pengiriman: Number(kirim?.total_pengiriman) || 0,
+        total_pendapatan: Number(sewa?.total_sewa) || 0,
       };
     });
 
@@ -154,42 +136,7 @@ exports.getPendapatanBulanan = async (_req, res) => {
   }
 };
 
-/* 5. Statistik Pengiriman Bulanan */
-exports.getPengirimanBulanan = async (_req, res) => {
-  try {
-    const tahun = new Date().getFullYear();
-    const raw = await Pengiriman.findAll({
-      attributes: [
-        [fn("MONTH", col("waktu_input")), "bulan"],
-        [fn("COUNT", col("id")), "jumlah_pengiriman"],
-        [fn("SUM", col("biaya")), "total_biaya_pengiriman"],
-      ],
-      where: db.Sequelize.where(fn("YEAR", col("waktu_input")), tahun),
-      group: [fn("MONTH", col("waktu_input"))],
-      raw: true,
-    });
-
-    const lengkap = bulanPanjang.map((nama, i) => {
-      const found = raw.find((r) => Number(r.bulan) === i + 1);
-      return {
-        bulan: nama,
-        jumlah_pengiriman: found ? Number(found.jumlah_pengiriman) : 0,
-        total_biaya_pengiriman: found
-          ? Number(found.total_biaya_pengiriman)
-          : 0,
-      };
-    });
-
-    res.json(lengkap);
-  } catch (err) {
-    res.status(500).json({
-      message: "Gagal mengambil statistik pengiriman bulanan",
-      error: err.message,
-    });
-  }
-};
-
-/* 6. Penyewa Terlambat */
+/* 5. Penyewa Terlambat */
 exports.getTerlambat = async (_req, res) => {
   try {
     const today = new Date();
