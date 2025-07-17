@@ -43,7 +43,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: false,
       validate: {
-        isIn: [["Diambil", "Diantar"]],
+        isIn: [["Diambil", "Diantar", "Showroom"]],
       },
     },
     metode_pengembalian: {
@@ -80,11 +80,10 @@ module.exports = (sequelize, DataTypes) => {
         "GAGAL",
         "DIBATALKAN",
         "SELESAI",
-        "DALAM PENYEWAAN" // ✅ ini harus ditambahkan
+        "DALAM PENYEWAAN"
       ),
       defaultValue: "MENUNGGU_PEMBAYARAN",
     },
-
     payment_url: {
       type: DataTypes.STRING,
       allowNull: true,
@@ -92,13 +91,12 @@ module.exports = (sequelize, DataTypes) => {
     external_id: {
       type: DataTypes.STRING,
       allowNull: false,
-      unique: true, // aktifkan ini
+      unique: true,
     },
     xendit_invoice_id: {
       type: DataTypes.STRING,
       allowNull: true,
     },
-
     metode_pembayaran: {
       type: DataTypes.STRING,
       allowNull: true,
@@ -109,6 +107,17 @@ module.exports = (sequelize, DataTypes) => {
       validate: {
         min: 0,
       },
+    },
+    // === Ongkir fields ===
+    ongkir_antar: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    },
+    ongkir_jemput: {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
     },
   });
 

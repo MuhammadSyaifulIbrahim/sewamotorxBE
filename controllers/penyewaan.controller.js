@@ -1,3 +1,5 @@
+// controllers/penyewaan.controller.js
+
 const db = require("../models");
 const Penyewaan = db.penyewaan;
 const Kendaraan = db.kendaraan;
@@ -11,6 +13,7 @@ const calculateDynamicPrice = require("../utils/dynamicPricing");
 const ExcelJS = require("exceljs");
 const PDFDocument = require("pdfkit");
 
+// --- Utility upload ke cloudinary ---
 const uploadBufferToCloudinary = (buffer, folder = "sewamotor/penyewaan") => {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
@@ -24,6 +27,9 @@ const uploadBufferToCloudinary = (buffer, folder = "sewamotor/penyewaan") => {
   });
 };
 
+// =============================
+// CREATE Penyewaan + Invoice
+// =============================
 exports.create = async (req, res) => {
   try {
     const userId = req.user.id;
@@ -39,6 +45,8 @@ exports.create = async (req, res) => {
       alamat_pengambilan,
       alamat_pengembalian,
       keterangan,
+      ongkir_antar,
+      ongkir_jemput,
     } = req.body;
 
     if (
@@ -88,6 +96,7 @@ exports.create = async (req, res) => {
     const jam_pengembalian = new Date(fullPickupDateTime);
     jam_pengembalian.setDate(jam_pengembalian.getDate() + hari);
 
+    // Kalkulasi harga dinamis
     const hargaInfo = calculateDynamicPrice({
       harga_per_hari: kendaraan.harga_sewa,
       diskon_produk: kendaraan.diskon || 0,
@@ -95,7 +104,12 @@ exports.create = async (req, res) => {
       jam_pengembalian,
     });
 
-    const hargaTotal = hargaInfo.total;
+    // Pastikan ongkir dari body atau 0
+    const ongkirAntar = Number(ongkir_antar) || 0;
+    const ongkirJemput = Number(ongkir_jemput) || 0;
+
+    // TOTAL
+    const hargaTotal = hargaInfo.total + ongkirAntar + ongkirJemput;
 
     let foto_ktp_url = null;
     let foto_sim_url = null;
@@ -119,8 +133,8 @@ exports.create = async (req, res) => {
     const externalID = `INV-${Date.now()}`;
     const invoice = await createInvoice({
       externalID,
-      referenceID: externalID, // ini boleh tetap, tapi optional aja
-      metadata: { external_id: externalID }, // TAMBAHKAN INI
+      referenceID: externalID,
+      metadata: { external_id: externalID },
       payerEmail: `${nama_penyewa
         .replace(/\s/g, "")
         .toLowerCase()}@sewamotor.com`,
@@ -145,6 +159,8 @@ exports.create = async (req, res) => {
       keterangan,
       foto_ktp: foto_ktp_url,
       foto_sim: foto_sim_url,
+      ongkir_antar: ongkirAntar,
+      ongkir_jemput: ongkirJemput,
       status: "MENUNGGU_PEMBAYARAN",
       payment_url: invoice.invoice_url,
       external_id: externalID,
@@ -170,7 +186,7 @@ exports.create = async (req, res) => {
 };
 
 // ======================
-// UPDATE jam + durasi
+// UPDATE JAM PENYEWAAN
 // ======================
 exports.updateJamPenyewaan = async (req, res) => {
   try {
@@ -254,7 +270,7 @@ exports.updateJamPenyewaan = async (req, res) => {
 };
 
 // ======================
-// GET penyewaan user
+// GET RIWAYAT USER
 // ======================
 exports.getByUser = async (req, res) => {
   try {
@@ -357,7 +373,7 @@ exports.getByDateRange = async (req, res) => {
 };
 
 // ======================
-// WEBHOOK dari Xendit
+// WEBHOOK Xendit
 // ======================
 exports.webhook = async (req, res) => {
   try {
@@ -486,7 +502,9 @@ exports.deletePenyewaan = async (req, res) => {
   }
 };
 
+// ======================
 // SELESAIKAN PENYEWAAN
+// ======================
 exports.markAsSelesai = async (req, res) => {
   try {
     const { id } = req.params;
@@ -520,6 +538,9 @@ exports.markAsSelesai = async (req, res) => {
   }
 };
 
+// ======================
+// EXPORT Excel & PDF
+// ======================
 exports.exportExcel = async (req, res) => {
   try {
     const { dari, sampai } = req.query;
@@ -552,6 +573,8 @@ exports.exportExcel = async (req, res) => {
       { header: "Durasi (hari)", key: "durasi_hari", width: 13 },
       { header: "Total Biaya", key: "harga_total", width: 16 },
       { header: "Status", key: "status", width: 14 },
+      { header: "Ongkir Antar", key: "ongkir_antar", width: 14 },
+      { header: "Ongkir Jemput", key: "ongkir_jemput", width: 14 },
     ];
 
     let totalPendapatan = 0;
