@@ -104,11 +104,8 @@ exports.create = async (req, res) => {
       jam_pengembalian,
     });
 
-    // Pastikan ongkir dari body atau 0
     const ongkirAntar = Number(ongkir_antar) || 0;
     const ongkirJemput = Number(ongkir_jemput) || 0;
-
-    // TOTAL
     const hargaTotal = hargaInfo.total + ongkirAntar + ongkirJemput;
 
     let foto_ktp_url = null;
@@ -165,6 +162,7 @@ exports.create = async (req, res) => {
       payment_url: invoice.invoice_url,
       external_id: externalID,
       harga_total: hargaTotal,
+      status_pesanan: "Sedang Dikemas", // Default pertama saat create
     };
 
     await Penyewaan.create(penyewaanData);
@@ -178,10 +176,42 @@ exports.create = async (req, res) => {
       durasi_hari: hari,
     });
   } catch (err) {
-    console.error("\u274C ERROR CREATE PENYEWAAN:", err.message);
+    console.error("❌ ERROR CREATE PENYEWAAN:", err.message);
     res
       .status(500)
       .json({ message: "Terjadi kesalahan saat menyimpan penyewaan" });
+  }
+};
+
+// ======================
+// UPDATE STATUS PESANAN
+// ======================
+exports.updateStatusPesanan = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status_pesanan } = req.body;
+    const daftarStatus = [
+      "Sedang Dikemas",
+      "Segera Ambil di Showroom",
+      "Dikirim",
+      "Telah Sampai di Tempat Customer",
+      "Proses Pengambilan Motor Sewa di Tempat Customer",
+      "Selesai Pengambilan Motor dari Tempat Customer",
+    ];
+
+    if (!daftarStatus.includes(status_pesanan)) {
+      return res.status(400).json({ message: "Status pesanan tidak valid" });
+    }
+
+    const penyewaan = await Penyewaan.findByPk(id);
+    if (!penyewaan)
+      return res.status(404).json({ message: "Penyewaan tidak ditemukan" });
+
+    penyewaan.status_pesanan = status_pesanan;
+    await penyewaan.save();
+    res.json({ message: "Status pesanan diperbarui", data: penyewaan });
+  } catch (err) {
+    res.status(500).json({ message: "Gagal update status pesanan" });
   }
 };
 
@@ -378,8 +408,6 @@ exports.getByDateRange = async (req, res) => {
 exports.webhook = async (req, res) => {
   try {
     const CALLBACK_SECRET = process.env.XENDIT_CALLBACK_TOKEN;
-
-    // Verifikasi token callback (dari header X-CALLBACK-TOKEN)
     const callbackToken = req.headers["x-callback-token"];
     if (!callbackToken || callbackToken !== CALLBACK_SECRET) {
       return res.status(401).json({ message: "Unauthorized webhook request" });
@@ -387,8 +415,6 @@ exports.webhook = async (req, res) => {
 
     const payload = req.body || {};
     const data = payload.data || {};
-
-    // Ambil nilai reference_id yang kamu tetapkan sebagai external_id saat membuat invoice
     const reference_id =
       data?.reference_id ||
       data?.external_id ||
@@ -411,11 +437,6 @@ exports.webhook = async (req, res) => {
       data.payment_channel ||
       payload.payment_method ||
       "TIDAK DIKETAHUI";
-
-    console.log("📦 Payload Webhook:", JSON.stringify(payload, null, 2));
-    console.log("🔍 reference_id:", reference_id);
-    console.log("📊 status:", status);
-    console.log("💳 metode:", metode);
 
     if (!reference_id || !status) {
       return res.status(400).json({ message: "Data webhook tidak lengkap" });
@@ -514,9 +535,6 @@ exports.markAsSelesai = async (req, res) => {
       return res.status(404).json({ message: "Penyewaan tidak ditemukan" });
     }
 
-    console.log(">> Status saat ini:", data.status);
-
-    // TERIMA status "DALAM PENYEWAAN" atau "BERHASIL"
     if (!["BERHASIL", "DALAM PENYEWAAN"].includes(data.status)) {
       return res.status(400).json({
         message: "Penyewaan belum dibayar atau sudah selesai sebelumnya",
@@ -575,6 +593,7 @@ exports.exportExcel = async (req, res) => {
       { header: "Status", key: "status", width: 14 },
       { header: "Ongkir Antar", key: "ongkir_antar", width: 14 },
       { header: "Ongkir Jemput", key: "ongkir_jemput", width: 14 },
+      { header: "Status Pesanan", key: "status_pesanan", width: 24 },
     ];
 
     let totalPendapatan = 0;
@@ -590,6 +609,9 @@ exports.exportExcel = async (req, res) => {
         durasi_hari: row.durasi_hari,
         harga_total: row.harga_total,
         status: row.status.replace(/_/g, " "),
+        ongkir_antar: row.ongkir_antar || 0,
+        ongkir_jemput: row.ongkir_jemput || 0,
+        status_pesanan: row.status_pesanan || "-",
       });
       totalPendapatan += Number(row.harga_total || 0);
     });
@@ -674,6 +696,9 @@ exports.exportPDF = async (req, res) => {
           `   Total Biaya: Rp${Number(row.harga_total).toLocaleString("id-ID")}`
         )
         .text(`   Status: ${row.status.replace(/_/g, " ")}`)
+        .text(`   Ongkir Antar: Rp${row.ongkir_antar || 0}`)
+        .text(`   Ongkir Jemput: Rp${row.ongkir_jemput || 0}`)
+        .text(`   Status Pesanan: ${row.status_pesanan || "-"}`)
         .moveDown(0.7);
 
       totalPendapatan += Number(row.harga_total || 0);

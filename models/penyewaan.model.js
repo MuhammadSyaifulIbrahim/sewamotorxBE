@@ -1,3 +1,5 @@
+// models/penyewaan.js
+
 module.exports = (sequelize, DataTypes) => {
   const Penyewaan = sequelize.define("penyewaan", {
     kendaraan_id: {
@@ -33,7 +35,7 @@ module.exports = (sequelize, DataTypes) => {
     },
     durasi_hari: {
       type: DataTypes.INTEGER,
-      allowNull: true,
+      allowNull: false,
       defaultValue: 1,
       validate: {
         min: 1,
@@ -83,6 +85,7 @@ module.exports = (sequelize, DataTypes) => {
         "DALAM PENYEWAAN"
       ),
       defaultValue: "MENUNGGU_PEMBAYARAN",
+      allowNull: false,
     },
     payment_url: {
       type: DataTypes.STRING,
@@ -103,7 +106,8 @@ module.exports = (sequelize, DataTypes) => {
     },
     harga_total: {
       type: DataTypes.INTEGER,
-      allowNull: true,
+      allowNull: false,
+      defaultValue: 0,
       validate: {
         min: 0,
       },
@@ -113,11 +117,30 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 0,
+      validate: {
+        min: 0,
+      },
     },
     ongkir_jemput: {
       type: DataTypes.INTEGER,
       allowNull: false,
       defaultValue: 0,
+      validate: {
+        min: 0,
+      },
+    },
+    // === Tracking status pengiriman ===
+    status_pesanan: {
+      type: DataTypes.ENUM(
+        "Sedang Dikemas",
+        "Segera Ambil di Showroom",
+        "Dikirim",
+        "Telah Sampai di Tempat Customer",
+        "Proses Pengambilan Motor Sewa di Tempat Customer",
+        "Selesai Pengambilan Motor dari Tempat Customer"
+      ),
+      allowNull: false,
+      defaultValue: "Sedang Dikemas",
     },
   });
 

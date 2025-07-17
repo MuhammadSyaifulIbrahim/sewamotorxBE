@@ -80,6 +80,19 @@ router.get("/user", authenticateToken, penyewaanController.getByUser);
 // 🔒 Filter berdasarkan tanggal
 router.get("/tanggal", authenticateToken, penyewaanController.getByDateRange);
 
+// 🔒 Update status pesanan (admin/manual)
+router.patch(
+  "/:id/status",
+  authenticateToken,
+  (req, res, next) => {
+    if (!req.body.status_pesanan) {
+      return res.status(400).json({ message: "Status pesanan wajib diisi" });
+    }
+    next();
+  },
+  penyewaanController.updateStatusPesanan
+);
+
 // 🔒 Tandai pesanan sebagai selesai ✅ — HARUS DI ATAS :id
 router.patch(
   "/:id/selesai",
@@ -118,7 +131,6 @@ router.get("/:id", authenticateToken, penyewaanController.getById);
 router.delete("/:id", authenticateToken, penyewaanController.deletePenyewaan);
 
 // 🔒 Ambil semua data penyewaan (admin)
-// Harus paling bawah agar tidak nabrak /:id
 router.get("/", authenticateToken, penyewaanController.getAll);
 
 module.exports = router;
