@@ -31,9 +31,6 @@ db.user = require("./user.model")(sequelize, DataTypes);
 db.penyewaan = require("./penyewaan.model")(sequelize, DataTypes);
 db.activityLog = require("./activity_log.model")(sequelize, DataTypes);
 
-// === Tambahkan Model Pengiriman ===
-db.pengiriman = require("./pengiriman")(sequelize, DataTypes); // Pastikan nama file: pengiriman.js
-
 // =============================
 // RELASI antar Model
 // =============================
@@ -68,25 +65,8 @@ db.activityLog.belongsTo(db.user, {
   as: "admin",
 });
 
-// ==== RELASI PENGIRIMAN ====
-// Pengiriman → Penyewaan
-db.pengiriman.belongsTo(db.penyewaan, {
-  foreignKey: "penyewaan_id",
-  as: "penyewaan",
-});
-db.penyewaan.hasMany(db.pengiriman, {
-  foreignKey: "penyewaan_id",
-  as: "pengirimans",
-});
-
-// (Optional) Pengiriman → User (admin input)
-db.pengiriman.belongsTo(db.user, {
-  foreignKey: "admin_id",
-  as: "admin",
-});
-db.user.hasMany(db.pengiriman, {
-  foreignKey: "admin_id",
-  as: "pengirimans",
-});
+// =============================
+// TIDAK ADA MODEL/RELASI PENGIRIMAN
+// =============================
 
 module.exports = db;

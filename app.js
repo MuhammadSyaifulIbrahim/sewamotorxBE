@@ -27,7 +27,7 @@ app.use("/api/pelanggan", require("./routes/pelanggan.routes"));
 app.use("/api/dashboard", require("./routes/dashboard.routes"));
 app.use("/api/users", require("./routes/user.routes"));
 app.use("/activity-logs", require("./routes/activity_log.routes"));
-app.use("/api/pengiriman", require("./routes/pengiriman.routes"));
+// >>>> app.use("/api/pengiriman", require("./routes/pengiriman.routes")); <<<< HAPUS LINE INI
 
 // ✅ Webhook Xendit
 const paymentController = require("./controllers/payment.controller");

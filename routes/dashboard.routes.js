@@ -15,11 +15,7 @@ router.get(
   authenticateToken,
   dashboard.getPendapatanBulanan
 );
-router.get(
-  "/pengiriman-bulanan",
-  authenticateToken,
-  dashboard.getPengirimanBulanan // <-- Tambahan: Statistik Pengiriman Bulanan
-);
+// router.get("/pengiriman-bulanan", authenticateToken, dashboard.getPengirimanBulanan); // HAPUS jika tidak dipakai!
 router.get("/aktivitas", authenticateToken, dashboard.getAktivitasTerbaru);
 router.get("/terlambat", authenticateToken, dashboard.getTerlambat);
 

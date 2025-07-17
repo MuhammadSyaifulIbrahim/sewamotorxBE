@@ -23,29 +23,19 @@ const bulanPanjang = [
 /* 1. Ringkasan Statistik */
 exports.getDashboardStats = async (_req, res) => {
   try {
-    const [
-      totalPelanggan,
-      totalKendaraan,
-      totalPenyewaan,
-      totalPendapatan,
-      totalPengiriman,
-      totalUangPengiriman,
-    ] = await Promise.all([
-      Penyewaan.count({ distinct: true, col: "nama_penyewa" }),
-      Kendaraan.count(),
-      Penyewaan.count(),
-      Penyewaan.sum("harga_total", { where: { status: "SELESAI" } }),
-      Pengiriman.count(),
-      Pengiriman.sum("biaya"),
-    ]);
+    const [totalPelanggan, totalKendaraan, totalPenyewaan, totalPendapatan] =
+      await Promise.all([
+        Penyewaan.count({ distinct: true, col: "nama_penyewa" }),
+        Kendaraan.count(),
+        Penyewaan.count(),
+        Penyewaan.sum("harga_total", { where: { status: "SELESAI" } }),
+      ]);
 
     res.json({
       totalPelanggan,
       totalKendaraan,
       totalPenyewaan,
       totalPendapatan: totalPendapatan || 0,
-      totalPengiriman,
-      totalUangPengiriman: totalUangPengiriman || 0,
     });
   } catch (err) {
     res
