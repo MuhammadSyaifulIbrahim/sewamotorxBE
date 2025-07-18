@@ -1,3 +1,4 @@
+// routes/notifikasiAdmin.routes.js
 const express = require("express");
 const router = express.Router();
 const notifikasiAdminCtrl = require("../controllers/notifikasiAdmin.controller");
