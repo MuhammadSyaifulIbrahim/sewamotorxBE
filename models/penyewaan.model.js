@@ -142,6 +142,15 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: "Sedang Dikemas",
     },
+
+    bukti_penerimaan: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    bukti_pengembalian: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   });
 
   return Penyewaan;

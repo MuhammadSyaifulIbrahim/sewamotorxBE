@@ -74,6 +74,22 @@ router.post(
   penyewaanController.create
 );
 
+// 🔒 === UPLOAD BUKTI PENERIMAAN ===
+router.post(
+  "/upload/bukti-penerimaan/:id",
+  authenticateToken,
+  upload.single("foto"),
+  penyewaanController.uploadBuktiPenerimaan
+);
+
+// 🔒 === UPLOAD BUKTI PENGEMBALIAN ===
+router.post(
+  "/upload/bukti-pengembalian/:id",
+  authenticateToken,
+  upload.single("foto"),
+  penyewaanController.uploadBuktiPengembalian
+);
+
 // 🔒 Riwayat penyewaan user login
 router.get("/user", authenticateToken, penyewaanController.getByUser);
 

@@ -718,3 +718,75 @@ exports.exportPDF = async (req, res) => {
     res.status(500).json({ message: "Gagal export PDF" });
   }
 };
+
+// ======================
+// UPLOAD BUKTI PENERIMAAN
+// ======================
+exports.uploadBuktiPenerimaan = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ message: "File tidak ditemukan" });
+    }
+    const penyewaan = await Penyewaan.findByPk(id);
+    if (!penyewaan)
+      return res.status(404).json({ message: "Penyewaan tidak ditemukan" });
+
+    const cloudResult = await uploadBufferToCloudinary(
+      req.file.buffer,
+      "sewamotor/bukti_penerimaan"
+    );
+    penyewaan.bukti_penerimaan = cloudResult.secure_url;
+    await penyewaan.save();
+
+    await logActivity(
+      req.user.id,
+      "Upload Bukti Penerimaan",
+      `Upload bukti penerimaan untuk penyewaan ID ${id}`
+    );
+
+    res.json({
+      message: "Bukti penerimaan berhasil diupload",
+      url: cloudResult.secure_url,
+    });
+  } catch (err) {
+    console.error("❌ UPLOAD BUKTI PENERIMAAN:", err.message);
+    res.status(500).json({ message: "Gagal upload bukti penerimaan" });
+  }
+};
+
+// ======================
+// UPLOAD BUKTI PENGEMBALIAN
+// ======================
+exports.uploadBuktiPengembalian = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ message: "File tidak ditemukan" });
+    }
+    const penyewaan = await Penyewaan.findByPk(id);
+    if (!penyewaan)
+      return res.status(404).json({ message: "Penyewaan tidak ditemukan" });
+
+    const cloudResult = await uploadBufferToCloudinary(
+      req.file.buffer,
+      "sewamotor/bukti_pengembalian"
+    );
+    penyewaan.bukti_pengembalian = cloudResult.secure_url;
+    await penyewaan.save();
+
+    await logActivity(
+      req.user.id,
+      "Upload Bukti Pengembalian",
+      `Upload bukti pengembalian untuk penyewaan ID ${id}`
+    );
+
+    res.json({
+      message: "Bukti pengembalian berhasil diupload",
+      url: cloudResult.secure_url,
+    });
+  } catch (err) {
+    console.error("❌ UPLOAD BUKTI PENGEMBALIAN:", err.message);
+    res.status(500).json({ message: "Gagal upload bukti pengembalian" });
+  }
+};
