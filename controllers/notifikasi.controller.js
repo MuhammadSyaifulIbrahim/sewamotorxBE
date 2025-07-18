@@ -21,10 +21,12 @@ exports.markAsRead = async (req, res) => {
   try {
     const notifId = req.params.id;
     const notif = await Notifikasi.findByPk(notifId);
+
     if (!notif)
       return res.status(404).json({ message: "Notifikasi tidak ditemukan" });
 
-    notif.sudah_dibaca = true;
+    // Gunakan angka (0/1) untuk tinyint(1)
+    notif.sudah_dibaca = 1;
     await notif.save();
 
     res.json({ message: "Notifikasi sudah dibaca", data: notif });
@@ -42,9 +44,11 @@ exports.createNotification = async (data, io) => {
       pesan: data.pesan,
       link: data.link || null,
       tipe: data.tipe || "info",
-      sudah_dibaca: false,
+      // Gunakan angka 0 agar konsisten tinyint(1) (bukan false boolean JS)
+      sudah_dibaca: 0,
     });
 
+    // Emit realtime ke user tertentu (bukan global)
     if (io && data.user_id) {
       io.emit(`notifikasi-user-${data.user_id}`, newNotif);
     }
