@@ -30,6 +30,8 @@ db.kendaraan = require("./kendaraan.model")(sequelize, DataTypes);
 db.user = require("./user.model")(sequelize, DataTypes);
 db.penyewaan = require("./penyewaan.model")(sequelize, DataTypes);
 db.activityLog = require("./activity_log.model")(sequelize, DataTypes);
+db.notifikasi = require("./notifikasi.model")(sequelize, DataTypes);
+db.notifikasiAdmin = require("./notifikasiAdmin.model")(sequelize, DataTypes); // Tambah notifikasi admin
 
 // =============================
 // RELASI antar Model
@@ -65,8 +67,24 @@ db.activityLog.belongsTo(db.user, {
   as: "admin",
 });
 
-// =============================
-// TIDAK ADA MODEL/RELASI PENGIRIMAN
-// =============================
+// User → Notifikasi (notifikasi user biasa)
+db.user.hasMany(db.notifikasi, {
+  foreignKey: "user_id",
+  as: "notifikasis",
+});
+db.notifikasi.belongsTo(db.user, {
+  foreignKey: "user_id",
+  as: "user",
+});
+
+// User (admin) → NotifikasiAdmin (notifikasi khusus admin)
+db.user.hasMany(db.notifikasiAdmin, {
+  foreignKey: "adminId",
+  as: "notifikasiAdmins",
+});
+db.notifikasiAdmin.belongsTo(db.user, {
+  foreignKey: "adminId",
+  as: "admin",
+});
 
 module.exports = db;

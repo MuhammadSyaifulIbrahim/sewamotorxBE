@@ -4,16 +4,18 @@ const db = require("../models");
 const Penyewaan = db.penyewaan;
 const Kendaraan = db.kendaraan;
 const User = db.user;
-const { createInvoice } = require("../utils/xendit");
+const Notifikasi = db.notifikasi;
+const NotifikasiAdmin = db.notifikasiAdmin; // pastikan sudah ada model ini!
 const { Op } = require("sequelize");
 const cloudinary = require("../utils/cloudinary");
 const streamifier = require("streamifier");
-const logActivity = require("../utils/logActivity");
+const { createInvoice } = require("../utils/xendit");
 const calculateDynamicPrice = require("../utils/dynamicPricing");
+const logActivity = require("../utils/logActivity");
 const ExcelJS = require("exceljs");
 const PDFDocument = require("pdfkit");
 
-// --- Utility upload ke cloudinary ---
+// === Utility upload ke cloudinary ===
 const uploadBufferToCloudinary = (buffer, folder = "sewamotor/penyewaan") => {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
@@ -28,11 +30,11 @@ const uploadBufferToCloudinary = (buffer, folder = "sewamotor/penyewaan") => {
 };
 
 // =============================
-// CREATE Penyewaan + Invoice + EMIT SOCKET
+// CREATE Penyewaan + Invoice + EMIT SOCKET + NOTIFIKASI USER & ADMIN
 // =============================
 exports.create = async (req, res) => {
   try {
-    const io = req.app.get("io"); // SOCKET.IO instance
+    const io = req.app.get("io");
     const userId = req.user.id;
     const {
       kendaraan_id,
@@ -170,7 +172,36 @@ exports.create = async (req, res) => {
     kendaraan.stok -= 1;
     await kendaraan.save();
 
-    // EMIT SOCKET: Order Baru (untuk list pesanan admin/user)
+    // =========== NOTIFIKASI USER ===========
+    await Notifikasi.create({
+      user_id: userId,
+      pesan: `Pesanan kamu untuk motor ${kendaraan.nama} berhasil dibuat dengan status MENUNGGU_PEMBAYARAN.`,
+      tipe: "success",
+      sudah_dibaca: false,
+    });
+    if (io)
+      io.to(`user_${userId}`).emit("notification:new", {
+        pesan: `Pesanan kamu untuk motor ${kendaraan.nama} berhasil dibuat dengan status MENUNGGU_PEMBAYARAN.`,
+        tipe: "success",
+      });
+
+    // =========== NOTIFIKASI ADMIN ===========
+    const admins = await User.findAll({ where: { role: "admin" } });
+    for (const admin of admins) {
+      await NotifikasiAdmin.create({
+        adminId: admin.id,
+        title: "Pesanan Baru",
+        message: `Pesanan baru dari ${nama_penyewa} untuk ${kendaraan.nama}`,
+        is_read: false,
+      });
+      if (io)
+        io.to(`admin_${admin.id}`).emit("admin:notification:new", {
+          title: "Pesanan Baru",
+          message: `Pesanan baru dari ${nama_penyewa} untuk ${kendaraan.nama}`,
+        });
+    }
+
+    // Emit order baru ke semua (admin dashboard, dll)
     if (io)
       io.emit("order:created", {
         id: createdOrder.id,
@@ -180,15 +211,6 @@ exports.create = async (req, res) => {
         jadwal_booking,
         jam_pengambilan,
         harga_total: hargaTotal,
-      });
-
-    // EMIT SOCKET: Aktivitas Terbaru untuk dashboard admin
-    if (io)
-      io.emit("dashboard:new_activity", {
-        id: createdOrder.id,
-        nama_penyewa,
-        kendaraan: kendaraan.nama,
-        createdAt: createdOrder.createdAt,
       });
 
     res.json({
@@ -206,7 +228,7 @@ exports.create = async (req, res) => {
 };
 
 // ======================
-// UPDATE STATUS PESANAN (emit socket)
+// UPDATE STATUS PESANAN (emit socket + NOTIFIKASI USER)
 // ======================
 exports.updateStatusPesanan = async (req, res) => {
   try {
@@ -233,7 +255,38 @@ exports.updateStatusPesanan = async (req, res) => {
     penyewaan.status_pesanan = status_pesanan;
     await penyewaan.save();
 
-    // EMIT SOCKET STATUS UPDATE
+    // === Notifikasi user (DB & socket) ===
+    await Notifikasi.create({
+      user_id: penyewaan.userId,
+      pesan: `Status pesanan kamu berubah menjadi: ${status_pesanan}`,
+      tipe: "info",
+      sudah_dibaca: false,
+    });
+    if (io)
+      io.to(`user_${penyewaan.userId}`).emit("notification:new", {
+        pesan: `Status pesanan kamu berubah menjadi: ${status_pesanan}`,
+        tipe: "info",
+      });
+
+    // === Notifikasi admin jika keterlambatan (optional, tinggal pakai di status "Terlambat ...") ===
+    if (status_pesanan.toLowerCase().includes("terlambat")) {
+      const admins = await User.findAll({ where: { role: "admin" } });
+      for (const admin of admins) {
+        await NotifikasiAdmin.create({
+          adminId: admin.id,
+          title: "Peringatan Keterlambatan",
+          message: `Pesanan ${penyewaan.nama_penyewa} (ID: ${penyewaan.id}) mengalami keterlambatan.`,
+          is_read: false,
+        });
+        if (io)
+          io.to(`admin_${admin.id}`).emit("admin:notification:new", {
+            title: "Peringatan Keterlambatan",
+            message: `Pesanan ${penyewaan.nama_penyewa} (ID: ${penyewaan.id}) mengalami keterlambatan.`,
+          });
+      }
+    }
+
+    // === EMIT SOCKET STATUS UPDATE (untuk dashboard/list) ===
     if (io) io.emit("order:status_updated", { id, status_pesanan });
 
     res.json({ message: "Status pesanan diperbarui", data: penyewaan });

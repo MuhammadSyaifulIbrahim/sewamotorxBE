@@ -1,6 +1,4 @@
-// ====================
 // app.js (with socket.io)
-// ====================
 const dotenv = require("dotenv");
 dotenv.config();
 
@@ -31,6 +29,8 @@ app.use("/api/pelanggan", require("./routes/pelanggan.routes"));
 app.use("/api/dashboard", require("./routes/dashboard.routes"));
 app.use("/api/users", require("./routes/user.routes"));
 app.use("/api/activity-logs", require("./routes/activity_log.routes"));
+app.use("/api/notifikasi", require("./routes/notifikasi.routes"));
+app.use("/api/notifikasi-admin", require("./routes/notifikasiAdmin.routes"));
 
 // ✅ Webhook Xendit
 const paymentController = require("./controllers/payment.controller");
@@ -65,6 +65,20 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     console.log("Socket client disconnected:", socket.id);
   });
+});
+
+// Contoh route test emit notifikasi (boleh hapus nanti)
+app.post("/api/test-notifikasi", (req, res) => {
+  const io = req.app.get("io");
+  const { userId, adminId, pesan, tipe } = req.body;
+
+  if (userId) {
+    io.emit(`notifikasi-user-${userId}`, { pesan, tipe });
+  }
+  if (adminId) {
+    io.emit(`notifikasi-admin-${adminId}`, { pesan, tipe });
+  }
+  res.json({ message: "Notifikasi terkirim via socket" });
 });
 
 // =====================================
