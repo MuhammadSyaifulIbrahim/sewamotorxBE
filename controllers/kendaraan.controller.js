@@ -1,13 +1,10 @@
-// === controllers/kendaraan.controller.js ===
 const db = require("../models");
 const Kendaraan = db.kendaraan;
 const cloudinary = require("../utils/cloudinary");
 const streamifier = require("streamifier");
 const { Op } = require("sequelize");
 
-// ==========================
 // Fungsi upload via buffer (untuk Cloudinary)
-// ==========================
 const uploadBufferToCloudinary = (buffer) => {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
@@ -21,9 +18,7 @@ const uploadBufferToCloudinary = (buffer) => {
   });
 };
 
-// ==========================
 // GET semua kendaraan
-// ==========================
 const getAll = async (req, res) => {
   try {
     const data = await Kendaraan.findAll({
@@ -36,9 +31,7 @@ const getAll = async (req, res) => {
   }
 };
 
-// ==========================
 // GET kendaraan by ID
-// ==========================
 const getById = async (req, res) => {
   try {
     const kendaraan = await Kendaraan.findByPk(req.params.id);
@@ -51,15 +44,12 @@ const getById = async (req, res) => {
   }
 };
 
-// ==========================
-// CREATE kendaraan
-// ==========================
+// CREATE kendaraan dengan emit socket event
 const create = async (req, res) => {
   try {
     const { nama, tipe, transmisi, harga_sewa, stok, diskon, gpsId, gpsUrl } =
       req.body;
 
-    // Validasi diskon wajib ada (saat create)
     const parsedDiskon = parseInt(diskon);
     if (isNaN(parsedDiskon) || parsedDiskon < 0 || parsedDiskon > 100) {
       return res
@@ -70,7 +60,6 @@ const create = async (req, res) => {
     let gambar_url = null;
     let qrImage_url = null;
 
-    // Upload file jika ada
     if (req.files?.gambar) {
       const result = await uploadBufferToCloudinary(req.files.gambar[0].buffer);
       gambar_url = result.secure_url;
@@ -96,6 +85,10 @@ const create = async (req, res) => {
       status: "tersedia",
     });
 
+    // Emit event realtime ke client
+    const io = req.app.get("io");
+    if (io) io.emit("produk:created", newData);
+
     res.status(201).json(newData);
   } catch (err) {
     console.error("Create error:", err);
@@ -105,9 +98,7 @@ const create = async (req, res) => {
   }
 };
 
-// ==========================
-// UPDATE kendaraan
-// ==========================
+// UPDATE kendaraan dengan emit socket event
 const update = async (req, res) => {
   try {
     const { nama, tipe, transmisi, harga_sewa, stok, diskon, gpsId, gpsUrl } =
@@ -117,7 +108,6 @@ const update = async (req, res) => {
     if (!kendaraan)
       return res.status(404).json({ message: "Data tidak ditemukan" });
 
-    // Gunakan diskon lama jika kosong/tidak dikirim (hanya update gps/qr)
     let parsedDiskon;
     if (diskon === undefined || diskon === null || diskon === "") {
       parsedDiskon = kendaraan.diskon;
@@ -157,6 +147,10 @@ const update = async (req, res) => {
       qrImage: qrImageBaru,
     });
 
+    // Emit event realtime ke client
+    const io = req.app.get("io");
+    if (io) io.emit("produk:updated", kendaraan);
+
     res.json({ message: "Kendaraan berhasil diupdate", data: kendaraan });
   } catch (err) {
     console.error("Update error:", err);
@@ -167,9 +161,7 @@ const update = async (req, res) => {
   }
 };
 
-// ==========================
-// DELETE kendaraan
-// ==========================
+// DELETE kendaraan dengan emit socket event
 const remove = async (req, res) => {
   try {
     const kendaraan = await Kendaraan.findByPk(req.params.id);
@@ -177,6 +169,11 @@ const remove = async (req, res) => {
       return res.status(404).json({ message: "Data tidak ditemukan" });
 
     await kendaraan.destroy();
+
+    // Emit event realtime ke client user
+    const io = req.app.get("io");
+    if (io) io.emit("produk:deleted", kendaraan.id);
+
     res.json({ message: "Kendaraan berhasil dihapus" });
   } catch (err) {
     console.error("Delete error:", err);
@@ -184,12 +181,9 @@ const remove = async (req, res) => {
   }
 };
 
-// ==========================
 // GET Only Kendaraan With GPS Data
-// ==========================
 const getMotorsWithGps = async (req, res) => {
   try {
-    // Data yang sudah pernah/telah diisi GPS ID (bisa juga filter by gpsUrl !== null kalau mau)
     const data = await Kendaraan.findAll({
       where: {
         gpsId: { [Op.ne]: null, [Op.not]: "" },

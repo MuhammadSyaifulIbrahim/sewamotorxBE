@@ -28,10 +28,11 @@ const uploadBufferToCloudinary = (buffer, folder = "sewamotor/penyewaan") => {
 };
 
 // =============================
-// CREATE Penyewaan + Invoice
+// CREATE Penyewaan + Invoice + EMIT SOCKET
 // =============================
 exports.create = async (req, res) => {
   try {
+    const io = req.app.get("io"); // SOCKET.IO instance
     const userId = req.user.id;
     const {
       kendaraan_id,
@@ -162,12 +163,33 @@ exports.create = async (req, res) => {
       payment_url: invoice.invoice_url,
       external_id: externalID,
       harga_total: hargaTotal,
-      status_pesanan: "Sedang Dikemas", // Default pertama saat create
+      status_pesanan: "Sedang Dikemas",
     };
 
-    await Penyewaan.create(penyewaanData);
+    const createdOrder = await Penyewaan.create(penyewaanData);
     kendaraan.stok -= 1;
     await kendaraan.save();
+
+    // EMIT SOCKET: Order Baru (untuk list pesanan admin/user)
+    if (io)
+      io.emit("order:created", {
+        id: createdOrder.id,
+        nama_penyewa,
+        status: "MENUNGGU_PEMBAYARAN",
+        kendaraan: kendaraan.nama,
+        jadwal_booking,
+        jam_pengambilan,
+        harga_total: hargaTotal,
+      });
+
+    // EMIT SOCKET: Aktivitas Terbaru untuk dashboard admin
+    if (io)
+      io.emit("dashboard:new_activity", {
+        id: createdOrder.id,
+        nama_penyewa,
+        kendaraan: kendaraan.nama,
+        createdAt: createdOrder.createdAt,
+      });
 
     res.json({
       message: "Berhasil membuat penyewaan",
@@ -184,10 +206,11 @@ exports.create = async (req, res) => {
 };
 
 // ======================
-// UPDATE STATUS PESANAN
+// UPDATE STATUS PESANAN (emit socket)
 // ======================
 exports.updateStatusPesanan = async (req, res) => {
   try {
+    const io = req.app.get("io");
     const { id } = req.params;
     const { status_pesanan } = req.body;
     const daftarStatus = [
@@ -209,6 +232,10 @@ exports.updateStatusPesanan = async (req, res) => {
 
     penyewaan.status_pesanan = status_pesanan;
     await penyewaan.save();
+
+    // EMIT SOCKET STATUS UPDATE
+    if (io) io.emit("order:status_updated", { id, status_pesanan });
+
     res.json({ message: "Status pesanan diperbarui", data: penyewaan });
   } catch (err) {
     res.status(500).json({ message: "Gagal update status pesanan" });
@@ -403,10 +430,11 @@ exports.getByDateRange = async (req, res) => {
 };
 
 // ======================
-// WEBHOOK Xendit
+// WEBHOOK Xendit (emit socket)
 // ======================
 exports.webhook = async (req, res) => {
   try {
+    const io = req.app.get("io");
     const CALLBACK_SECRET = process.env.XENDIT_CALLBACK_TOKEN;
     const callbackToken = req.headers["x-callback-token"];
     if (!callbackToken || callbackToken !== CALLBACK_SECRET) {
@@ -485,6 +513,13 @@ exports.webhook = async (req, res) => {
     penyewaan.metode_pembayaran = metode;
     await penyewaan.save();
 
+    // EMIT KE ADMIN JIKA DIBAYAR/EXPIRED
+    if (io)
+      io.emit("order:payment_status", {
+        id: penyewaan.id,
+        status: penyewaan.status,
+      });
+
     return res.status(200).json({ message: "Webhook berhasil diproses" });
   } catch (err) {
     console.error("❌ Webhook error:", err.message);
@@ -495,10 +530,11 @@ exports.webhook = async (req, res) => {
 };
 
 // ======================
-// DELETE penyewaan
+// DELETE penyewaan (emit socket)
 // ======================
 exports.deletePenyewaan = async (req, res) => {
   try {
+    const io = req.app.get("io");
     const { id } = req.params;
     const data = await Penyewaan.findByPk(id, {
       include: [{ model: Kendaraan, as: "kendaraan" }],
@@ -516,6 +552,10 @@ exports.deletePenyewaan = async (req, res) => {
       "Hapus Penyewaan",
       `Admin menghapus penyewaan oleh ${data.nama_penyewa} (${data.nomor_telepon}) untuk kendaraan ${data.kendaraan?.nama}`
     );
+
+    // EMIT HAPUS
+    if (io) io.emit("order:deleted", { id });
+
     res.json({ message: "Berhasil dihapus" });
   } catch (err) {
     console.error("❌ ERROR DELETE:", err.message);
@@ -524,10 +564,11 @@ exports.deletePenyewaan = async (req, res) => {
 };
 
 // ======================
-// SELESAIKAN PENYEWAAN
+// SELESAIKAN PENYEWAAN (emit socket)
 // ======================
 exports.markAsSelesai = async (req, res) => {
   try {
+    const io = req.app.get("io");
     const { id } = req.params;
     const data = await Penyewaan.findByPk(id);
 
@@ -548,6 +589,9 @@ exports.markAsSelesai = async (req, res) => {
       "Selesaikan Penyewaan",
       `Admin menyelesaikan penyewaan ID ${id}`
     );
+
+    // EMIT SELESAI
+    if (io) io.emit("order:selesai", { id });
 
     res.json({ message: "Penyewaan berhasil diselesaikan", id });
   } catch (err) {
@@ -720,10 +764,11 @@ exports.exportPDF = async (req, res) => {
 };
 
 // ======================
-// UPLOAD BUKTI PENERIMAAN
+// UPLOAD BUKTI PENERIMAAN (emit socket)
 // ======================
 exports.uploadBuktiPenerimaan = async (req, res) => {
   try {
+    const io = req.app.get("io");
     const { id } = req.params;
     if (!req.file || !req.file.buffer) {
       return res.status(400).json({ message: "File tidak ditemukan" });
@@ -745,6 +790,10 @@ exports.uploadBuktiPenerimaan = async (req, res) => {
       `Upload bukti penerimaan untuk penyewaan ID ${id}`
     );
 
+    // EMIT BUKTI
+    if (io)
+      io.emit("order:bukti_penerimaan", { id, url: cloudResult.secure_url });
+
     res.json({
       message: "Bukti penerimaan berhasil diupload",
       url: cloudResult.secure_url,
@@ -756,10 +805,11 @@ exports.uploadBuktiPenerimaan = async (req, res) => {
 };
 
 // ======================
-// UPLOAD BUKTI PENGEMBALIAN
+// UPLOAD BUKTI PENGEMBALIAN (emit socket)
 // ======================
 exports.uploadBuktiPengembalian = async (req, res) => {
   try {
+    const io = req.app.get("io");
     const { id } = req.params;
     if (!req.file || !req.file.buffer) {
       return res.status(400).json({ message: "File tidak ditemukan" });
@@ -780,6 +830,10 @@ exports.uploadBuktiPengembalian = async (req, res) => {
       "Upload Bukti Pengembalian",
       `Upload bukti pengembalian untuk penyewaan ID ${id}`
     );
+
+    // EMIT BUKTI
+    if (io)
+      io.emit("order:bukti_pengembalian", { id, url: cloudResult.secure_url });
 
     res.json({
       message: "Bukti pengembalian berhasil diupload",

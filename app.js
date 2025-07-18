@@ -1,5 +1,5 @@
 // ====================
-// app.js
+// app.js (with socket.io)
 // ====================
 const dotenv = require("dotenv");
 dotenv.config();
@@ -11,10 +11,14 @@ const bcrypt = require("bcryptjs");
 const methodOverride = require("method-override");
 const db = require("./models");
 
+// Tambahan socket.io
+const http = require("http");
+const socketIo = require("socket.io");
+
 const app = express();
 
 app.use(cors());
-app.use(express.json()); // Penting untuk body parser JSON
+app.use(express.json());
 app.use(methodOverride("_method"));
 
 // ====================
@@ -28,8 +32,6 @@ app.use("/api/dashboard", require("./routes/dashboard.routes"));
 app.use("/api/users", require("./routes/user.routes"));
 app.use("/api/activity-logs", require("./routes/activity_log.routes"));
 
-// >>>> app.use("/api/pengiriman", require("./routes/pengiriman.routes")); <<<< HAPUS LINE INI
-
 // ✅ Webhook Xendit
 const paymentController = require("./controllers/payment.controller");
 app.post("/xendit-callback", paymentController.webhook);
@@ -41,6 +43,31 @@ const PORT = process.env.PORT || 3001;
 
 // DEVELOPMENT MODE: AUTO RESET DB
 const forceSync = process.env.NODE_ENV !== "production";
+
+// ========== SOCKET.IO SETUP ==========
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: { origin: "*" }, // adjust if needed
+});
+
+// Simpan io instance di app agar bisa diakses di controller
+app.set("io", io);
+
+io.on("connection", (socket) => {
+  console.log("Socket client connected:", socket.id);
+
+  // Contoh event custom (opsional)
+  socket.on("test-ping", (msg) => {
+    console.log("Dapat pesan dari client:", msg);
+    socket.emit("test-pong", { ok: true, waktu: new Date() });
+  });
+
+  socket.on("disconnect", () => {
+    console.log("Socket client disconnected:", socket.id);
+  });
+});
+
+// =====================================
 
 // Sync Database dan buat akun admin jika belum ada
 db.sequelize
@@ -85,9 +112,9 @@ db.sequelize
     // Cron job aktifkan
     require("./cron/reminderJob");
 
-    // Start server
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
+    // Start server (pakai server.listen agar socket jalan!)
+    server.listen(PORT, () => {
+      console.log(`🚀 Server & socket.io running on port ${PORT}`);
     });
   })
   .catch((err) => {
