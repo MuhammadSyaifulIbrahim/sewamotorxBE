@@ -30,8 +30,10 @@ exports.markAsRead = async (req, res) => {
       return res.status(404).json({ message: "Notifikasi tidak ditemukan" });
     }
 
-    notif.is_read = true; // otomatis akan jadi 1 di database (MySQL)
-    await notif.save();
+    await NotifikasiAdmin.update(
+      { is_read: true },
+      { where: { id: notifId, adminId } }
+    );
 
     res.json({ message: "Notifikasi sudah dibaca", data: notif });
   } catch (err) {

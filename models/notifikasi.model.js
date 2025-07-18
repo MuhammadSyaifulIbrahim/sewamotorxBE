@@ -22,8 +22,9 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: "info",
     },
     sudah_dibaca: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: false,
+      type: DataTypes.INTEGER, // atau DataTypes.BOOLEAN
+      defaultValue: 0,
+      allowNull: false,
     },
   });
 
