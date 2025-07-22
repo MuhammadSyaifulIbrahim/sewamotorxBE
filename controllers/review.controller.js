@@ -3,6 +3,8 @@
 const db = require("../models");
 const Review = db.Review;
 const Penyewaan = db.penyewaan;
+const User = db.user;
+const Kendaraan = db.kendaraan; // optional, jika ingin tampil nama motor
 
 // POST /api/review
 exports.createReview = async (req, res) => {
@@ -23,9 +25,7 @@ exports.createReview = async (req, res) => {
     const existing = await Review.findOne({ where: { penyewaanId } });
     if (existing) return res.status(400).json({ message: "Review sudah ada" });
 
-    // Relasi kendaraan_id / kendaraanId harus sesuai field di model (lihat database dan modelmu)
-    // Gunakan "penyewaan.kendaraan_id" jika relasi di model dan migrasi "kendaraan_id"
-    // Gunakan "penyewaan.kendaraanId" jika di model camelCase
+    // Relasi kendaraan_id / kendaraanId harus sesuai field di model
     const kendaraanId = penyewaan.kendaraan_id || penyewaan.kendaraanId;
 
     // Buat review baru
@@ -48,6 +48,8 @@ exports.getReviewByKendaraan = async (req, res) => {
   try {
     const reviews = await Review.findAll({
       where: { kendaraanId: req.params.kendaraanId },
+      include: [{ model: User, as: "user", attributes: ["nama"] }],
+      order: [["createdAt", "DESC"]],
     });
     res.json(reviews);
   } catch (err) {
@@ -60,8 +62,27 @@ exports.getReviewByPenyewaan = async (req, res) => {
   try {
     const review = await Review.findOne({
       where: { penyewaanId: req.params.penyewaanId },
+      include: [{ model: User, as: "user", attributes: ["nama"] }],
     });
     res.json(review); // Kalau null, frontend tau review BELUM ADA
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// GET /api/review/public  ===> ENDPOINT UNTUK LANDING PAGE, NO AUTH
+exports.getAllPublicReview = async (req, res) => {
+  try {
+    // Ambil 12 review terbaru, join user & kendaraan untuk display
+    const reviews = await Review.findAll({
+      limit: 12,
+      order: [["createdAt", "DESC"]],
+      include: [
+        { model: User, as: "user", attributes: ["nama"] },
+        { model: Kendaraan, as: "kendaraan", attributes: ["nama"] },
+      ],
+    });
+    res.json(reviews);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

@@ -5,7 +5,9 @@ const auth = require("../middleware/auth.middleware");
 
 router.post("/", auth.authenticateToken, reviewController.createReview);
 router.get("/kendaraan/:kendaraanId", reviewController.getReviewByKendaraan);
-// Tambahan ini ⬇️
 router.get("/penyewaan/:penyewaanId", reviewController.getReviewByPenyewaan);
+
+// Endpoint public review untuk landing page:
+router.get("/public", reviewController.getAllPublicReview);
 
 module.exports = router;
