@@ -387,7 +387,10 @@ exports.getByUser = async (req, res) => {
     const userId = req.user.id;
     const data = await Penyewaan.findAll({
       where: { userId },
-      include: [{ model: Kendaraan, as: "kendaraan" }],
+      include: [
+        { model: Kendaraan, as: "kendaraan" },
+        { model: db.Review, as: "review" }, // <<< Tambahkan baris ini!
+      ],
       order: [["createdAt", "DESC"]],
     });
     res.json(data);
