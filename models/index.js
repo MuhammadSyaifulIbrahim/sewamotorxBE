@@ -87,4 +87,7 @@ db.notifikasiAdmin.belongsTo(db.user, {
   as: "admin",
 });
 
+// Reviews User
+db.Review = require("./review.model")(sequelize, Sequelize);
+
 module.exports = db;

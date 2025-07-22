@@ -31,6 +31,7 @@ app.use("/api/users", require("./routes/user.routes"));
 app.use("/api/activity-logs", require("./routes/activity_log.routes"));
 app.use("/api/notifikasi", require("./routes/notifikasi.routes"));
 app.use("/api/notifikasi-admin", require("./routes/notifikasiAdmin.routes"));
+app.use("/api/review", require("./routes/review.routes"));
 
 // ✅ Webhook Xendit
 const paymentController = require("./controllers/payment.controller");
