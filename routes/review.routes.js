@@ -5,5 +5,7 @@ const auth = require("../middleware/auth.middleware");
 
 router.post("/", auth.authenticateToken, reviewController.createReview);
 router.get("/kendaraan/:kendaraanId", reviewController.getReviewByKendaraan);
+// Tambahan ini ⬇️
+router.get("/penyewaan/:penyewaanId", reviewController.getReviewByPenyewaan);
 
 module.exports = router;
