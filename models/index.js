@@ -90,4 +90,14 @@ db.notifikasiAdmin.belongsTo(db.user, {
 // Reviews User
 db.Review = require("./review.model")(sequelize, Sequelize);
 
+// Penyewaan → Review (HASONE)
+db.penyewaan.hasOne(db.Review, {
+  foreignKey: "penyewaanId",
+  as: "review", // biar nanti include: [{ model: db.Review, as: "review" }]
+});
+db.Review.belongsTo(db.penyewaan, {
+  foreignKey: "penyewaanId",
+  as: "penyewaan",
+});
+
 module.exports = db;
