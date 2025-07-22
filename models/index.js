@@ -31,7 +31,10 @@ db.user = require("./user.model")(sequelize, DataTypes);
 db.penyewaan = require("./penyewaan.model")(sequelize, DataTypes);
 db.activityLog = require("./activity_log.model")(sequelize, DataTypes);
 db.notifikasi = require("./notifikasi.model")(sequelize, DataTypes);
-db.notifikasiAdmin = require("./notifikasiAdmin.model")(sequelize, DataTypes); // Tambah notifikasi admin
+db.notifikasiAdmin = require("./notifikasiAdmin.model")(sequelize, DataTypes);
+
+// Reviews User (HARUS di atas relasi!)
+db.Review = require("./review.model")(sequelize, Sequelize);
 
 // =============================
 // RELASI antar Model
@@ -87,17 +90,40 @@ db.notifikasiAdmin.belongsTo(db.user, {
   as: "admin",
 });
 
-// Reviews User
-db.Review = require("./review.model")(sequelize, Sequelize);
+// =============================
+// RELASI Review KE User, Kendaraan, Penyewaan
+// =============================
 
-// Penyewaan → Review (HASONE)
+// User → Review (user punya banyak review)
+db.user.hasMany(db.Review, {
+  foreignKey: "userId",
+  as: "reviews",
+});
+db.Review.belongsTo(db.user, {
+  foreignKey: "userId",
+  as: "user",
+});
+
+// Kendaraan → Review (satu motor bisa direview banyak user)
+db.kendaraan.hasMany(db.Review, {
+  foreignKey: "kendaraanId",
+  as: "reviews",
+});
+db.Review.belongsTo(db.kendaraan, {
+  foreignKey: "kendaraanId",
+  as: "kendaraan",
+});
+
+// Penyewaan → Review (satu penyewaan satu review)
 db.penyewaan.hasOne(db.Review, {
   foreignKey: "penyewaanId",
-  as: "review", // biar nanti include: [{ model: db.Review, as: "review" }]
+  as: "review",
 });
 db.Review.belongsTo(db.penyewaan, {
   foreignKey: "penyewaanId",
   as: "penyewaan",
 });
+
+// =============================
 
 module.exports = db;
