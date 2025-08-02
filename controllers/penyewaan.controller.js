@@ -14,6 +14,7 @@ const calculateDynamicPrice = require("../utils/dynamicPricing");
 const logActivity = require("../utils/logActivity");
 const ExcelJS = require("exceljs");
 const PDFDocument = require("pdfkit");
+const pelanggan = await User.findByPk(userId);
 
 // === Utility upload ke cloudinary ===
 const uploadBufferToCloudinary = (buffer, folder = "sewamotor/penyewaan") => {
@@ -135,9 +136,7 @@ exports.create = async (req, res) => {
       externalID,
       referenceID: externalID,
       metadata: { external_id: externalID },
-      payerEmail: `${nama_penyewa
-        .replace(/\s/g, "")
-        .toLowerCase()}@sewamotor.com`,
+      payerEmail: pelanggan.email, // ✅ gunakan email user asli
       description: `Penyewaan ${kendaraan.nama} - ${hari} hari`,
       amount: hargaTotal,
       redirectURL: `${process.env.FRONTEND_URL}/dashboard/history`,
