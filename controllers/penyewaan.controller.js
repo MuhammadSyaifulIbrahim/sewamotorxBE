@@ -528,7 +528,6 @@ exports.webhook = async (req, res) => {
       return res.status(400).json({ message: "Data webhook tidak lengkap" });
     }
 
-    // Cari berdasarkan external_id yang disamakan dengan reference_id
     const penyewaan = await Penyewaan.findOne({
       where: {
         [Op.or]: [
@@ -542,7 +541,6 @@ exports.webhook = async (req, res) => {
       return res.status(404).json({ message: "Penyewaan tidak ditemukan" });
     }
 
-    // Kembalikan stok kalau pembayaran gagal/batal
     if (["EXPIRED", "FAILED", "CANCELLED"].includes(status.toUpperCase())) {
       const kendaraan = await Kendaraan.findByPk(penyewaan.kendaraan_id);
       if (kendaraan) {
@@ -551,42 +549,42 @@ exports.webhook = async (req, res) => {
       }
     }
 
-    // Update status penyewaan sesuai status pembayaran
     switch (status.toUpperCase()) {
       case "PAID":
       case "SUCCEEDED": {
         penyewaan.status = "BERHASIL";
 
-        // Kirim email konfirmasi pembayaran
         const user = await User.findByPk(penyewaan.userId);
+        const kendaraan = await Kendaraan.findByPk(penyewaan.kendaraan_id);
+
         if (user && user.email) {
           await sendEmail(
             user.email,
             "Pembayaran Sukses - MotoRent",
             `
-  <h3>Halo ${user.nama || "Pelanggan"},</h3>
-  <p>Pembayaran kamu untuk penyewaan motor <strong>${
-    kendaraan?.nama
-  }</strong> telah <strong>BERHASIL</strong>.</p>
+<h3>Halo ${user.nama || "Pelanggan"},</h3>
+<p>Pembayaran kamu untuk penyewaan motor <strong>${
+              kendaraan?.nama
+            }</strong> telah <strong>BERHASIL</strong>.</p>
 
-  <p><strong>Detail Pesanan:</strong></p>
-  <ul>
-    <li>📅 Pengambilan: ${new Date(penyewaan.jam_pengambilan).toLocaleString(
-      "id-ID"
-    )}</li>
-    <li>📅 Pengembalian: ${new Date(penyewaan.jam_pengembalian).toLocaleString(
-      "id-ID"
-    )}</li>
-    <li>💰 Total Bayar: Rp${penyewaan.harga_total.toLocaleString("id-ID")}</li>
-    <li>🔁 Metode Pembayaran: ${penyewaan.metode_pembayaran}</li>
-  </ul>
+<p><strong>Detail Pesanan:</strong></p>
+<ul>
+  <li>📅 Pengambilan: ${new Date(penyewaan.jam_pengambilan).toLocaleString(
+    "id-ID"
+  )}</li>
+  <li>📅 Pengembalian: ${new Date(penyewaan.jam_pengembalian).toLocaleString(
+    "id-ID"
+  )}</li>
+  <li>💰 Total Bayar: Rp${penyewaan.harga_total.toLocaleString("id-ID")}</li>
+  <li>🔁 Metode Pembayaran: ${penyewaan.metode_pembayaran}</li>
+</ul>
 
-  <p>Silakan cek detail pesanan di dashboard: <a href="${
-    process.env.FRONTEND_URL
-  }/dashboard/history">Klik di sini</a></p>
+<p>Silakan cek detail pesanan di dashboard: <a href="${
+              process.env.FRONTEND_URL
+            }/dashboard/history">Klik di sini</a></p>
 
-  <br><p>Salam,<br>Tim MotoRent</p>
-  `
+<br><p>Salam,<br>Tim MotoRent</p>
+            `
           );
         }
         break;
@@ -608,7 +606,6 @@ exports.webhook = async (req, res) => {
     penyewaan.metode_pembayaran = metode;
     await penyewaan.save();
 
-    // EMIT KE ADMIN JIKA DIBAYAR/EXPIRED
     if (io)
       io.emit("order:payment_status", {
         id: penyewaan.id,
