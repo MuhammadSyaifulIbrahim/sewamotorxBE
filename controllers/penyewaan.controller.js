@@ -563,13 +563,30 @@ exports.webhook = async (req, res) => {
           await sendEmail(
             user.email,
             "Pembayaran Sukses - MotoRent",
-            `<p>Hai ${user.nama || "Pelanggan"},</p>
-        <p>Pembayaran kamu untuk penyewaan <strong>${
-          penyewaan.nama_penyewa
-        }</strong> berhasil diterima.</p>
-        <p>Terima kasih telah menggunakan layanan <strong>MotoRent</strong>.</p>
-        <p>Detail pesanan dapat kamu cek di dashboard.</p>
-        <br><p>Salam,<br>Tim MotoRent</p>`
+            `
+  <h3>Halo ${user.nama || "Pelanggan"},</h3>
+  <p>Pembayaran kamu untuk penyewaan motor <strong>${
+    kendaraan?.nama
+  }</strong> telah <strong>BERHASIL</strong>.</p>
+
+  <p><strong>Detail Pesanan:</strong></p>
+  <ul>
+    <li>📅 Pengambilan: ${new Date(penyewaan.jam_pengambilan).toLocaleString(
+      "id-ID"
+    )}</li>
+    <li>📅 Pengembalian: ${new Date(penyewaan.jam_pengembalian).toLocaleString(
+      "id-ID"
+    )}</li>
+    <li>💰 Total Bayar: Rp${penyewaan.harga_total.toLocaleString("id-ID")}</li>
+    <li>🔁 Metode Pembayaran: ${penyewaan.metode_pembayaran}</li>
+  </ul>
+
+  <p>Silakan cek detail pesanan di dashboard: <a href="${
+    process.env.FRONTEND_URL
+  }/dashboard/history">Klik di sini</a></p>
+
+  <br><p>Salam,<br>Tim MotoRent</p>
+  `
           );
         }
         break;

@@ -1,6 +1,6 @@
 const nodemailer = require("nodemailer");
 
-// Konfigurasi transport SMTP Gmail
+// === Konfigurasi transporter SMTP (Gmail) ===
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -10,23 +10,27 @@ const transporter = nodemailer.createTransport({
 });
 
 /**
- * Mengirim email ke user
+ * Mengirim email ke penerima
  * @param {string} to - Alamat email tujuan
  * @param {string} subject - Judul email
- * @param {string} html - Isi HTML email
- * @param {string} [text] - (Opsional) Versi text fallback dari HTML
- * @returns {Promise}
+ * @param {string} html - Konten HTML email
+ * @param {string} [text] - (Opsional) versi teks biasa dari HTML
+ * @param {string} [replyTo] - (Opsional) alamat balasan
+ * @returns {Promise<Object>} Info pengiriman dari Nodemailer
  */
 const sendEmail = async (
   to,
   subject = "Notifikasi dari RentalMotor.id",
   html = "",
-  text = ""
+  text = "",
+  replyTo = undefined
 ) => {
   if (!to || typeof to !== "string" || !to.includes("@")) {
-    console.error("❌ Email tujuan tidak valid:", to);
+    console.warn("❌ Email tujuan tidak valid:", to);
     return;
   }
+
+  const plainText = text || html.replace(/<[^>]*>?/gm, ""); // fallback text dari html
 
   try {
     const info = await transporter.sendMail({
@@ -34,20 +38,20 @@ const sendEmail = async (
       to,
       subject,
       html,
-      text: text || html.replace(/<[^>]*>?/gm, ""), // fallback text jika tidak disediakan
+      text: plainText,
+      ...(replyTo && { replyTo }),
     });
 
-    console.log("✅ Email berhasil dikirim!");
-    console.log("📨 Tujuan:", to);
-    console.log("📝 Subject:", subject);
-    console.log("📬 Response:", info.response);
-
+    console.log("✅ [SMTP] Email berhasil dikirim");
+    console.log("📨 Tujuan     :", to);
+    console.log("📝 Subject    :", subject);
+    console.log("📬 SMTP Reply :", info.response);
     return info;
   } catch (err) {
-    console.error("❌ Gagal mengirim email:");
-    console.error("🧑‍💻 Email tujuan:", to);
-    console.error("📝 Subject:", subject);
-    console.error("📄 Error message:", err.message);
+    console.error("❌ [SMTP] Gagal mengirim email");
+    console.error("🧑‍💻 Tujuan :", to);
+    console.error("📝 Subject :", subject);
+    console.error("💥 Error   :", err.message);
     throw err;
   }
 };
