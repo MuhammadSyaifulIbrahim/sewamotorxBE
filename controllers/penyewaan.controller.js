@@ -12,6 +12,7 @@ const streamifier = require("streamifier");
 const { createInvoice } = require("../utils/xendit");
 const calculateDynamicPrice = require("../utils/dynamicPricing");
 const logActivity = require("../utils/logActivity");
+const sendEmail = require("../utils/sendEmail");
 const ExcelJS = require("exceljs");
 const PDFDocument = require("pdfkit");
 
@@ -553,16 +554,36 @@ exports.webhook = async (req, res) => {
     // Update status penyewaan sesuai status pembayaran
     switch (status.toUpperCase()) {
       case "PAID":
-      case "SUCCEEDED":
+      case "SUCCEEDED": {
         penyewaan.status = "BERHASIL";
+
+        // Kirim email konfirmasi pembayaran
+        const user = await User.findByPk(penyewaan.userId);
+        if (user && user.email) {
+          await sendEmail(
+            user.email,
+            "Pembayaran Sukses - MotoRent",
+            `<p>Hai ${user.nama || "Pelanggan"},</p>
+        <p>Pembayaran kamu untuk penyewaan <strong>${
+          penyewaan.nama_penyewa
+        }</strong> berhasil diterima.</p>
+        <p>Terima kasih telah menggunakan layanan <strong>MotoRent</strong>.</p>
+        <p>Detail pesanan dapat kamu cek di dashboard.</p>
+        <br><p>Salam,<br>Tim MotoRent</p>`
+          );
+        }
         break;
+      }
+
       case "EXPIRED":
       case "FAILED":
         penyewaan.status = "GAGAL";
         break;
+
       case "CANCELLED":
         penyewaan.status = "DIBATALKAN";
         break;
+
       default:
         penyewaan.status = "MENUNGGU_PEMBAYARAN";
     }
