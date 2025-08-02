@@ -553,6 +553,7 @@ exports.webhook = async (req, res) => {
       case "PAID":
       case "SUCCEEDED": {
         penyewaan.status = "BERHASIL";
+        penyewaan.metode_pembayaran = metode; // ✅ pindahkan ke atas
 
         const user = await User.findByPk(penyewaan.userId);
         const kendaraan = await Kendaraan.findByPk(penyewaan.kendaraan_id);
@@ -562,29 +563,30 @@ exports.webhook = async (req, res) => {
             user.email,
             "Pembayaran Sukses - MotoRent",
             `
-<h3>Halo ${user.nama || "Pelanggan"},</h3>
-<p>Pembayaran kamu untuk penyewaan motor <strong>${
-              kendaraan?.nama
-            }</strong> telah <strong>BERHASIL</strong>.</p>
+      <h3>Halo ${user.nama || "Pelanggan"},</h3>
+      <p>Pembayaran kamu untuk penyewaan motor <strong>${
+        kendaraan?.nama
+      }</strong> telah <strong>BERHASIL</strong>.</p>
 
-<p><strong>Detail Pesanan:</strong></p>
-<ul>
-  <li>📅 Pengambilan: ${new Date(penyewaan.jam_pengambilan).toLocaleString(
-    "id-ID"
-  )}</li>
-  <li>📅 Pengembalian: ${new Date(penyewaan.jam_pengembalian).toLocaleString(
-    "id-ID"
-  )}</li>
-  <li>💰 Total Bayar: Rp${penyewaan.harga_total.toLocaleString("id-ID")}</li>
-  <li>🔁 Metode Pembayaran: ${penyewaan.metode_pembayaran}</li>
-</ul>
+      <p><strong>Detail Pesanan:</strong></p>
+      <ul>
+        <li>📅 Pengambilan: ${new Date(
+          penyewaan.jam_pengambilan
+        ).toLocaleString("id-ID")}</li>
+        <li>📅 Pengembalian: ${new Date(
+          penyewaan.jam_pengembalian
+        ).toLocaleString("id-ID")}</li>
+        <li>💰 Total Bayar: Rp${penyewaan.harga_total.toLocaleString(
+          "id-ID"
+        )}</li>
+        <li>🔁 Metode Pembayaran: ${penyewaan.metode_pembayaran}</li>
+      </ul>
 
-<p>Silakan cek detail pesanan di dashboard: <a href="${
-              process.env.FRONTEND_URL
-            }/dashboard/history">Klik di sini</a></p>
-
-<br><p>Salam,<br>Tim MotoRent</p>
-            `
+      <p>Silakan cek detail pesanan di dashboard: <a href="${
+        process.env.FRONTEND_URL
+      }/dashboard/history">Klik di sini</a></p>
+      <br><p>Salam,<br>Tim MotoRent</p>
+      `
           );
         }
         break;
