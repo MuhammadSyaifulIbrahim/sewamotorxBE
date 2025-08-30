@@ -1,5 +1,3 @@
-// models/index.js
-
 const { Sequelize, DataTypes } = require("sequelize");
 const dbConfig = require("../config/db.config");
 
@@ -10,13 +8,13 @@ const sequelize = new Sequelize(dbConfig.DB, dbConfig.USER, dbConfig.PASSWORD, {
   port: dbConfig.PORT || 3306,
   logging: false,
   pool: {
-    max: 10, // jumlah maksimum koneksi
-    min: 0, // minimum koneksi
-    acquire: 30000, // waktu maksimum untuk mendapatkan koneksi (ms)
-    idle: 10000, // waktu idle sebelum koneksi ditutup (ms)
+    max: 10,
+    min: 0,
+    acquire: 30000,
+    idle: 10000,
   },
   dialectOptions: {
-    connectTimeout: 60000, // timeout koneksi (ms)
+    connectTimeout: 60000,
   },
 });
 
@@ -43,61 +41,61 @@ db.sequelize = sequelize;
 // Registrasi Semua Model
 // =============================
 
-db.kendaraan = require("./kendaraan.model")(sequelize, DataTypes);
-db.user = require("./user.model")(sequelize, DataTypes);
-db.penyewaan = require("./penyewaan.model")(sequelize, DataTypes);
-db.activityLog = require("./activity_log.model")(sequelize, DataTypes);
-db.notifikasi = require("./notifikasi.model")(sequelize, DataTypes);
-db.notifikasiAdmin = require("./notifikasiAdmin.model")(sequelize, DataTypes);
-db.Review = require("./review.model")(sequelize, Sequelize);
+db.Kendaraan = require("./kendaraan.model")(sequelize, DataTypes);
+db.User = require("./user.model")(sequelize, DataTypes);
+db.Penyewaan = require("./penyewaan.model")(sequelize, DataTypes);
+db.ActivityLog = require("./activity_log.model")(sequelize, DataTypes);
+db.Notifikasi = require("./notifikasi.model")(sequelize, DataTypes);
+db.NotifikasiAdmin = require("./notifikasiAdmin.model")(sequelize, DataTypes);
+db.Review = require("./review.model")(sequelize, DataTypes);
 
 // =============================
 // RELASI antar Model
 // =============================
 
 // Kendaraan → Penyewaan
-db.kendaraan.hasMany(db.penyewaan, {
+db.Kendaraan.hasMany(db.Penyewaan, {
   foreignKey: "kendaraan_id",
   as: "penyewaans",
 });
-db.penyewaan.belongsTo(db.kendaraan, {
+db.Penyewaan.belongsTo(db.Kendaraan, {
   foreignKey: "kendaraan_id",
   as: "kendaraan",
 });
 
 // User → Penyewaan
-db.user.hasMany(db.penyewaan, { foreignKey: "userId", as: "penyewaans" });
-db.penyewaan.belongsTo(db.user, { foreignKey: "userId", as: "user" });
+db.User.hasMany(db.Penyewaan, { foreignKey: "userId", as: "penyewaans" });
+db.Penyewaan.belongsTo(db.User, { foreignKey: "userId", as: "user" });
 
 // User → ActivityLog
-db.user.hasMany(db.activityLog, { foreignKey: "adminId", as: "logs" });
-db.activityLog.belongsTo(db.user, { foreignKey: "adminId", as: "admin" });
+db.User.hasMany(db.ActivityLog, { foreignKey: "adminId", as: "logs" });
+db.ActivityLog.belongsTo(db.User, { foreignKey: "adminId", as: "admin" });
 
 // User → Notifikasi
-db.user.hasMany(db.notifikasi, { foreignKey: "user_id", as: "notifikasis" });
-db.notifikasi.belongsTo(db.user, { foreignKey: "user_id", as: "user" });
+db.User.hasMany(db.Notifikasi, { foreignKey: "user_id", as: "notifikasis" });
+db.Notifikasi.belongsTo(db.User, { foreignKey: "user_id", as: "user" });
 
 // User (admin) → NotifikasiAdmin
-db.user.hasMany(db.notifikasiAdmin, {
+db.User.hasMany(db.NotifikasiAdmin, {
   foreignKey: "adminId",
   as: "notifikasiAdmins",
 });
-db.notifikasiAdmin.belongsTo(db.user, { foreignKey: "adminId", as: "admin" });
+db.NotifikasiAdmin.belongsTo(db.User, { foreignKey: "adminId", as: "admin" });
 
 // User → Review
-db.user.hasMany(db.Review, { foreignKey: "userId", as: "reviews" });
-db.Review.belongsTo(db.user, { foreignKey: "userId", as: "user" });
+db.User.hasMany(db.Review, { foreignKey: "userId", as: "reviews" });
+db.Review.belongsTo(db.User, { foreignKey: "userId", as: "user" });
 
 // Kendaraan → Review
-db.kendaraan.hasMany(db.Review, { foreignKey: "kendaraanId", as: "reviews" });
-db.Review.belongsTo(db.kendaraan, {
+db.Kendaraan.hasMany(db.Review, { foreignKey: "kendaraanId", as: "reviews" });
+db.Review.belongsTo(db.Kendaraan, {
   foreignKey: "kendaraanId",
   as: "kendaraan",
 });
 
 // Penyewaan → Review
-db.penyewaan.hasOne(db.Review, { foreignKey: "penyewaanId", as: "review" });
-db.Review.belongsTo(db.penyewaan, {
+db.Penyewaan.hasOne(db.Review, { foreignKey: "penyewaanId", as: "review" });
+db.Review.belongsTo(db.Penyewaan, {
   foreignKey: "penyewaanId",
   as: "penyewaan",
 });
